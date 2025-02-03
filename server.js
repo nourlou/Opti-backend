@@ -1,11 +1,16 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors');
 const bcrypt = require('bcrypt');
+const cors = require('cors');
+const app = express();
+app.use(cors());
+
+
+
 
 // Initialisation de l'application Express
-const bcrypt = require('bcryptjs'); // For hashing passwords
-const app = express();
+ // For hashing passwords
+
 
 // User model with additional fields
 const User = mongoose.model('User', new mongoose.Schema({
@@ -68,7 +73,7 @@ app.post('/api/users', async (req, res) => {
 
     return res.status(201).send(newUser); // Respond with the created user data
   } catch (err) {
-    return res.status(500).send({ message: 'Error creating user' });
+    return res.status(500).send({ message: 'Error creating user', error: err.message });
   }
 });
 
@@ -79,7 +84,7 @@ app.get('/api/users', async (req, res) => {
 });
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { nom, email, password } = req.body;
     const { id } = req.params;  // Get user ID from URL parameter
 
     // Check if user exists
@@ -98,7 +103,7 @@ app.put('/api/users/:id', async (req, res) => {
     // Update user details
     const updatedUser = await User.findByIdAndUpdate(
       id,
-      { name, email, password: updatedPassword },
+      { nom, email, password: updatedPassword },
       { new: true } // Return the updated user
     );
 
@@ -115,4 +120,4 @@ app.listen(port, () => {
   console.log(`Serveur démarré sur http://localhost:${port}`);
 });
 // Server listening on port 3000
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+
