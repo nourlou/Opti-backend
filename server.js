@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const bcrypt = require('bcrypt');
+// const bcrypt = require('bcrypt');
 
 // Initialisation de l'application Express
 const bcrypt = require('bcryptjs'); // For hashing passwords
@@ -110,7 +110,7 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 // Démarrage du serveur
-const port = 3000;
+const port = 3001;
 app.listen(port, () => {
   console.log(`Serveur démarré sur http://localhost:${port}`);
 });
