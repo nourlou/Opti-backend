@@ -115,7 +115,7 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 // Démarrage du serveur
-const port = 3000;
+const port = 3001;
 app.listen(port, () => {
   console.log(`Serveur démarré sur http://localhost:${port}`);
 });
