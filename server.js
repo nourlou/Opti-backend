@@ -55,7 +55,7 @@ app.post('/api/forgot-password', async (req, res) => {
 
   // Generate a 6-digit reset code
   const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // Expires in 10 minutes
+  const expiresAt = Date.now() + 5 * 60 * 1000; // Expires in 5 minutes
 
   // Store reset code temporarily
   resetCodes.set(email, { code: resetCode, expiresAt });
