@@ -1,34 +1,25 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
-const cors = require('cors');
-const app = express();
-app.use(cors());
-
-
-
-
-// Initialisation de l'application Express
- // For hashing passwords
-=======
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const { OAuth2Client } = require('google-auth-library');
+const axios = require('axios');
+const passport = require('passport');
+const FacebookStrategy = require('passport-facebook').Strategy;
+
 
 
 dotenv.config(); // Load environment variables
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Remplacez avec votre ID client Google
+process.env.JWT_SECRET = 'your_very_secure_secret_key';
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 
 const app = express();
-<<<<<<< HEAD
->>>>>>> 05887eac395d58b74c9820ff71bae7588f4da0a2
-=======
 app.use(cors());
 app.use(express.json());
->>>>>>> fa00f3496c43b432dde7bbf907f37a2e0cdb5f76
+
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/Opti_app', { useNewUrlParser: true, useUnifiedTopology: true })
@@ -106,7 +97,7 @@ app.post('/api/forgot-password', async (req, res) => {
 
   // Send email with the reset code
   const mailOptions = {
-    from: 'yosrbencheikh28@gmail.com',
+    from:'yosrbencheikh28@gmail.com',
     to: email,
     subject: 'Password Reset Code',
     html: `
@@ -189,7 +180,7 @@ app.post('/api/forgot-password', async (req, res) => {
     `
   };
   
-  
+
 
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
@@ -301,38 +292,18 @@ app.post('/api/users', async (req, res) => {
     return res.status(201).json({ message: 'User registered successfully' });
 
   } catch (err) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-    return res.status(500).send({ message: 'Error creating user', error: err.message });
-=======
     console.error('Registration error:', err);
     return res.status(500).json({ message: 'Error registering user' });
->>>>>>> 05887eac395d58b74c9820ff71bae7588f4da0a2
-=======
-    console.error('Registration error:', err);
-    return res.status(500).json({ message: 'Error registering user' });
->>>>>>> fa00f3496c43b432dde7bbf907f37a2e0cdb5f76
   }
 });
 
 // Login Route
 app.post('/api/login', async (req, res) => {
   try {
-<<<<<<< HEAD
-<<<<<<< HEAD
-    const { nom, email, password } = req.body;
-    const { id } = req.params;  // Get user ID from URL parameter
-=======
-=======
->>>>>>> fa00f3496c43b432dde7bbf907f37a2e0cdb5f76
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
-<<<<<<< HEAD
->>>>>>> 05887eac395d58b74c9820ff71bae7588f4da0a2
-=======
->>>>>>> fa00f3496c43b432dde7bbf907f37a2e0cdb5f76
 
     // Vérifier si l'utilisateur existe dans la base de données
     const user = await User.findOne({ email });
@@ -379,20 +350,6 @@ app.put('/api/users/:id', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-    // Update user details
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
-      { nom, email, password: updatedPassword },
-      { new: true } // Return the updated user
-    );
-=======
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined in the environment variables');
-    }
->>>>>>> 05887eac395d58b74c9820ff71bae7588f4da0a2
-=======
     if (!process.env.JWT_SECRET) {
       throw new Error('JWT_SECRET is not defined in the environment variables');
     }
@@ -407,7 +364,6 @@ app.put('/api/users/:id', async (req, res) => {
       { nom, email, password: updatedPassword },
       { new: true }
     );
->>>>>>> fa00f3496c43b432dde7bbf907f37a2e0cdb5f76
 
     const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
     return res.status(200).json({ message: 'Login successful', token });
@@ -468,24 +424,105 @@ app.post('/api/google-login', async (req, res) => {
     return res.status(400).json({ message: 'Invalid Google token', error: error.message });
   }
 });
-<<<<<<< HEAD
-<<<<<<< HEAD
-// Server listening on port 3000
-
-=======
-=======
->>>>>>> fa00f3496c43b432dde7bbf907f37a2e0cdb5f76
 
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
+const router = express.Router();
+require('dotenv').config();
 
-// Start Server
+passport.use(
+  new FacebookStrategy(
+    {
+      clientID: '1304521740805476',  // Replace with your own Facebook App ID
+      clientSecret: '0f14d7edea3140df0913c5c7ce734710',  // Replace with your own Facebook App Secret
+      callbackURL: 'http://localhost:3000/auth/facebook/callback',
+    },
+    async (accessToken, refreshToken, profile, cb) => {
+      const user = await User.findOne({
+        accountId: profile.id,
+        provider: 'facebook',
+      });
+
+      if (!user) {
+        console.log('Adding new Facebook user to DB..');
+        const newUser = new User({
+          accountId: profile.id,
+          name: profile.displayName,
+          provider: profile.provider,
+        });
+        await newUser.save();
+        return cb(null, profile);
+      } else {
+        console.log('Facebook user already exists in DB..');
+        return cb(null, profile);
+      }
+    }
+  )
+);
+
+// Route to handle Facebook login from Flutter app
+router.post('/api/facebook-login', async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+
+    // Step 1: Verify the token with Facebook
+    const response = await axios.get(
+      `https://graph.facebook.com/me?access_token=${accessToken}&fields=id,name,email`
+    );
+
+    if (response.data && response.data.id) {
+      // Step 2: Authenticate with Passport
+      passport.authenticate('facebook', (err, user) => {
+        if (err) {
+          return res.status(500).send('Error during authentication');
+        }
+
+        if (user) {
+          // Generate a JWT or session token (example below)
+          const token = 'generated-token-here';  // Replace with your JWT generation logic
+          return res.json({ token, user });
+        } else {
+          return res.status(401).send('Facebook user not authenticated');
+        }
+      })(req, res); // Trigger passport's authentication
+    } else {
+      return res.status(400).send('Invalid Facebook access token');
+    }
+  } catch (error) {
+    console.error('Error during Facebook login:', error);
+    return res.status(500).send('Internal Server Error');
+  }
+});
+
+// Add route to handle Facebook authentication via passport
+router.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+
+// Handle Facebook callback
+router.get(
+  '/auth/facebook/callback',
+  passport.authenticate('facebook', { failureRedirect: '/auth/facebook/error' }),
+  (req, res) => {
+    // Successful login
+    res.redirect('/auth/facebook/success');
+  }
+);
+
+// Handle success and failure routes
+router.get('/auth/facebook/success', (req, res) => {
+  res.send('Facebook login successful');
+});
+
+router.get('/auth/facebook/error', (req, res) => {
+  res.send('Error logging in via Facebook');
+});
+
+// Add the router to your app
+app.use(router);
+
+// Your server setup (e.g., listening on port 3000)
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
-<<<<<<< HEAD
->>>>>>> 05887eac395d58b74c9820ff71bae7588f4da0a2
-=======
->>>>>>> fa00f3496c43b432dde7bbf907f37a2e0cdb5f76
