@@ -15,6 +15,14 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Remplace
 process.env.JWT_SECRET = 'your_very_secure_secret_key';
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const passport = require('passport');
+const session = require('express-session');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const { OAuth2Client } = require('google-auth-library');
+const dotenv = require('dotenv');
+
+dotenv.config(); // Load environment variables
+process.env.JWT_SECRET = 'your_very_secure_secret_key';
 
 const app = express();
 app.use(cors());
@@ -28,13 +36,23 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/Opti_app', 
 
 // CORS Configuration
 app.use(cors({
-  origin: '*', // 🔹 Autorise toutes les origines (peut être ajusté)
+  origin: '*',
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Middleware to parse JSON request body
 app.use(express.json());
+
+// Initialize passport
+app.use(session({
+  secret: 'secret',
+  resave: false,
+  saveUninitialized: true,
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // User model
 const User = mongoose.model('User', new mongoose.Schema({
@@ -47,15 +65,119 @@ const User = mongoose.model('User', new mongoose.Schema({
   region: { type: String, required: true },
   gender: { type: String, required: true },
 }));
+const GOOGLE_CLIENT_ID = '95644263598-f0kl6h2bh00hcng322rn4a57dj5ubgje.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET= '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'
+// Google Strategy Setup
+passport.use(new GoogleStrategy({
+  clientID: GOOGLE_CLIENT_ID,  //clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+   
+  clientSecret:GOOGLE_CLIENT_SECRET,
+  callbackURL: 'http://localhost:3000/auth/google/callback',
+}, (accessToken, refreshToken, profile, done) => {
+  // Check if user already exists in DB
+  User.findOne({ email: profile.emails[0].value }).then(user => {
+    if (user) {
+      done(null, user);
+    } else {
+      const newUser = new User({
+        nom: profile.name.givenName,
+        prenom: profile.name.familyName,
+        email: profile.emails[0].value,
+        date: new Date().toISOString(),
+        password: '',
+        phone: '',  // You can set this later if required
+        region: '',
+        gender: '',
+      });
+
+      newUser.save().then(() => done(null, newUser));
+    }
+  });
+}));
+
+passport.serializeUser((user, done) => done(null, user));
+passport.deserializeUser((user, done) => done(null, user));
+
+// Routes
+app.get('/', (req, res) => {
+  res.send('<a href="/auth/google">Login with Google</a>');
+});
+
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
+  res.redirect('/profile');
+});
+
+app.get('/profile', (req, res) => {
+  res.send(`Welcome ${req.user.displayName}`);
+});
+
+app.get('/logout', (req, res) => {
+  req.logout(() => {
+    res.redirect('/');
+  });
+});
 
 // Registration Route
-// MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/Opti_app', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('Error connecting to MongoDB:', err));
+app.post('/api/users', async (req, res) => {
+  try {
+    const { nom, prenom, email, date, password, phone, region, gender } = req.body;
+    if (!nom || !prenom || !email || !date || !password || !phone || !region || !gender) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({ nom, prenom, email, date, password: hashedPassword, phone, region, gender });
+
+    await newUser.save();
+    return res.status(201).json({ message: 'User registered successfully' });
+
+  } catch (err) {
+    console.error('Registration error:', err);
+    return res.status(500).json({ message: 'Error registering user' });
+  }
+});
+
+// Login Route
+app.post('/api/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Verify user in DB
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Create a JWT token after validation
+    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+
+    res.status(200).json({ message: 'Login successful', token });
+
+  } catch (err) {
+    return res.status(500).json({ message: 'Error logging in user' });
+  }
+});
+
+// Start the server
+app.listen(3000, () => {
+  console.log('Server is running on port 3000');
+});
+
 
 // Temporary storage for reset codes
 const resetCodes = new Map(); // { email: { code, expiresAt } }
@@ -297,30 +419,37 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+
 // Login Route
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    // Validate the input
     if (!email || !password) {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Vérifier si l'utilisateur existe dans la base de données
+    // Check if the user exists in the database
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Comparer le mot de passe envoyé avec celui stocké dans la base de données
+    // Compare the password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Créer un jeton JWT après la validation
-    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    
-    // Retourner la réponse avec le jeton JWT
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // Return the response with the token
     return res.status(200).json({ message: 'Login successful', token });
 
   } catch (err) {
@@ -328,6 +457,7 @@ app.post('/api/login', async (req, res) => {
     return res.status(500).json({ message: 'Error logging in user', error: err.message });
   }
 });
+
 
 
 app.get('/api/users', async (req, res) => {
@@ -525,4 +655,6 @@ app.use(router);
 // Your server setup (e.g., listening on port 3000)
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+
+// Start Server
+
