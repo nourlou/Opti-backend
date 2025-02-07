@@ -15,13 +15,13 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Remplace
 process.env.JWT_SECRET = 'your_very_secure_secret_key';
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const passport = require('passport');
+
 const session = require('express-session');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const { OAuth2Client } = require('google-auth-library');
-const dotenv = require('dotenv');
 
-dotenv.config(); // Load environment variables
+
+
+ // Load environment variables
 process.env.JWT_SECRET = 'your_very_secure_secret_key';
 
 const app = express();
@@ -368,7 +368,10 @@ app.post('/api/reset-password', async (req, res) => {
     console.log(`Code for ${email} has expired during password reset.`);
     return res.status(400).send({ message: 'Code has expired' });
   }
-
+  console.log('Reset Password Request:');
+  console.log('Email: $email');
+  console.log('Code: $verificationCode');
+  console.log('Response: ${response.body}');
   // Hash new password and update user
   const hashedPassword = await bcrypt.hash(newPassword, 10);
   await User.findOneAndUpdate({ email }, { password: hashedPassword });
@@ -467,42 +470,44 @@ app.get('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const { nom, email, password } = req.body;
+    const { nom, email, dateNaissance, region, genre } = req.body;
     const { id } = req.params;
 
     const user = await User.findById(id);
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'User not found' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined in the environment variables');
-    }
-    let updatedPassword = password;
-    if (password) {
+    // If the password is provided, hash it, otherwise, keep the old one
+    let updatedPassword = user.password;
+    if (req.body.password) {
       const salt = await bcrypt.genSalt(10);
-      updatedPassword = await bcrypt.hash(password, salt);
+      updatedPassword = await bcrypt.hash(req.body.password, salt);
     }
 
+    // Update user data
     const updatedUser = await User.findByIdAndUpdate(
       id,
-      { nom, email, password: updatedPassword },
+      {
+        nom,
+        email,
+        dateNaissance,
+        region,
+        genre,
+        password: updatedPassword, // only update password if provided
+      },
       { new: true }
     );
 
-    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    return res.status(200).json({ message: 'Login successful', token });
+    // Return success message
+    return res.status(200).json({ message: 'Profile updated successfully', user: updatedUser });
 
   } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ message: 'Error logging in user', error: err.message });
+    console.error('Error updating user:', err);
+    return res.status(500).json({ message: 'Error updating user', error: err.message });
   }
 });
+
 
 // Google Login Route
 app.post('/api/google-login', async (req, res) => {
