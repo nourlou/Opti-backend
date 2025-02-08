@@ -120,29 +120,48 @@ app.get('/logout', (req, res) => {
 });
 
 // Registration Route
+// Registration Route
 app.post('/api/users', async (req, res) => {
   try {
     const { nom, prenom, email, date, password, phone, region, gender } = req.body;
+    
+    // Validate all required fields
     if (!nom || !prenom || !email || !date || !password || !phone || !region || !gender) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
+    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create the new user
     const newUser = new User({ nom, prenom, email, date, password: hashedPassword, phone, region, gender });
-
     await newUser.save();
-    return res.status(201).json({ message: 'User registered successfully' });
 
+    // Generate a JWT token for the new user
+    const token = jwt.sign(
+      { id: newUser._id, email: newUser.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    // Return userId and token in the response
+    return res.status(201).json({
+      message: 'User registered successfully',
+      userId: newUser._id,
+      token: token
+    });
   } catch (err) {
     console.error('Registration error:', err);
-    return res.status(500).json({ message: 'Error registering user' });
+    return res.status(500).json({ message: 'Error registering user', error: err.message });
   }
 });
+
 
 // Login Route
 app.post('/api/login', async (req, res) => {
