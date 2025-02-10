@@ -63,7 +63,7 @@ const User = mongoose.model('User', new mongoose.Schema({
   password: { type: String, required: true },
   phone: { type: String, required: true },
   region: { type: String, required: true },
-  gender: { type: String, required: true },
+  genre: { type: String, required: true },
 }));
 const GOOGLE_CLIENT_ID = '95644263598-f0kl6h2bh00hcng322rn4a57dj5ubgje.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET= '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'
@@ -87,7 +87,7 @@ passport.use(new GoogleStrategy({
         password: '',
         phone: '',  // You can set this later if required
         region: '',
-        gender: '',
+        genre: '',
       });
 
       newUser.save().then(() => done(null, newUser));
@@ -123,10 +123,10 @@ app.get('/logout', (req, res) => {
 // Registration Route
 app.post('/api/users', async (req, res) => {
   try {
-    const { nom, prenom, email, date, password, phone, region, gender } = req.body;
+    const { nom, prenom, email, date, password, phone, region, genre } = req.body;
     
     // Validate all required fields
-    if (!nom || !prenom || !email || !date || !password || !phone || !region || !gender) {
+    if (!nom || !prenom || !email || !date || !password || !phone || !region || !genre) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -140,7 +140,7 @@ app.post('/api/users', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create the new user
-    const newUser = new User({ nom, prenom, email, date, password: hashedPassword, phone, region, gender });
+    const newUser = new User({ nom, prenom, email, date, password: hashedPassword, phone, region, genre });
     await newUser.save();
 
     // Generate a JWT token for the new user
@@ -174,12 +174,12 @@ app.post('/api/login', async (req, res) => {
     // Verify user in DB
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: "Email not found" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Incorrect password' });
     }
 
     // Create a JWT token after validation
@@ -419,8 +419,8 @@ app.get('/api/users/:email', async (req, res) => {
 
 app.post('/api/users', async (req, res) => {
   try {
-    const { nom, prenom, email, date, password, phone, region, gender } = req.body;
-    if (!nom || !prenom || !email || !date || !password || !phone || !region || !gender) {
+    const { nom, prenom, email, date, password, phone, region, genre } = req.body;
+    if (!nom || !prenom || !email || !date || !password || !phone || !region || !genre) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -430,7 +430,7 @@ app.post('/api/users', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ nom, prenom, email, date, password: hashedPassword, phone, region, gender });
+    const newUser = new User({ nom, prenom, email, date, password: hashedPassword, phone, region, genre });
 
     await newUser.save();
     return res.status(201).json({ message: 'User registered successfully' });
@@ -489,12 +489,12 @@ app.get('/api/users', async (req, res) => {
 
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const { nom, email, dateNaissance, region, genre } = req.body;
+    const { nom,prenom, email, date, region, genre } = req.body;
     const { id } = req.params;
 
     const user = await User.findById(id);
     if (!user) {
-      return res.status(400).json({ message: 'User not found' });
+      return res.status(400).json({ message: 'user not found' });
     }
 
     // If the password is provided, hash it, otherwise, keep the old one
@@ -509,8 +509,9 @@ app.put('/api/users/:id', async (req, res) => {
       id,
       {
         nom,
+        prenom,
         email,
-        dateNaissance,
+        date,
         region,
         genre,
         password: updatedPassword, // only update password if provided
@@ -524,6 +525,43 @@ app.put('/api/users/:id', async (req, res) => {
   } catch (err) {
     console.error('Error updating user:', err);
     return res.status(500).json({ message: 'Error updating user', error: err.message });
+  }
+});
+
+app.get('/api/users/:id', async (req, res) => {
+  try {
+    // Extract the id from the URL parameters
+    const { id } = req.params;
+    console.log('Received params:', req.params);
+
+    // Check if the id is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid user ID format' });
+    }
+
+    // Attempt to find the user by ID
+    const user = await User.findById(id);
+    console.log('Fetching user with ID:', id);
+    console.log('User found:', user);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Return user data with necessary fields
+    res.status(200).json({
+      id: user._id,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      date: user.date,
+      region: user.region,
+      genre: user.genre,
+      phone: user.phone,
+    });
+  } catch (error) {
+    console.error('Server Error:', error);
+    res.status(500).json({ message: 'Failed to load user data' });
   }
 });
 
@@ -554,7 +592,7 @@ app.post('/api/google-login', async (req, res) => {
         password: 'N/A',  // Vous pouvez ne pas avoir de mot de passe ici, car l'utilisateur se connecte via Google
         phone: 'N/A',
         region: 'N/A',
-        gender: 'N/A',
+        genre: 'N/A',
       });
 
       await user.save();
