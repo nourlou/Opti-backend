@@ -3,123 +3,139 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
-const { OAuth2Client } = require('google-auth-library');
-const axios = require('axios');
-const passport = require('passport');
-const FacebookStrategy = require('passport-facebook').Strategy;
-
-
-
-dotenv.config(); // Load environment variables
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Remplacez avec votre ID client Google
-process.env.JWT_SECRET = 'your_very_secure_secret_key';
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const session = require('express-session');
+const passport = require('passport');
+const FacebookStrategy = require('passport-facebook').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const axios = require('axios');
 
-process.env.JWT_SECRET = 'your_very_secure_secret_key';
+// Import the User model
+const User = require('./models/User');
+
+dotenv.config(); // Load environment variables
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key';
 
 const app = express();
-app.use(cors());
-app.use(express.json());
 
-
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/Opti_app', { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('✅ MongoDB connected successfully'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
-
-// CORS Configuration
+// Middleware setup
 app.use(cors({
-  origin: '*',
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000', 
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
-
-// Middleware to parse JSON request body
 app.use(express.json());
-
-// Initialize passport
-app.use(session({
-  secret: 'secret',
-  resave: false,
-  saveUninitialized: true,
+app.use(session({ 
+  secret: process.env.SESSION_SECRET || 'yourSecretKey', 
+  resave: false, 
+  saveUninitialized: true 
 }));
-
 app.use(passport.initialize());
 app.use(passport.session());
 
-// User model
-const User = mongoose.model('User', new mongoose.Schema({
-  nom: { type: String, required: true },
-  prenom: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  date: { type: String, required: true },
-  password: { type: String, required: true },
-  phone: { type: String, required: true },
-  region: { type: String, required: true },
-  gender: { type: String, required: true },
-}));
-const GOOGLE_CLIENT_ID = '95644263598-f0kl6h2bh00hcng322rn4a57dj5ubgje.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET= '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'
-// Google Strategy Setup
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/Opti_app', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  bufferCommands: false,  // Disable buffering of commands
+  connectTimeoutMS: 30000  // Increase the timeout period to 30 seconds
+})
+.then(() => console.log('✅ MongoDB connected successfully'))
+.catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+// Google Authentication Setup
 passport.use(new GoogleStrategy({
-  clientID: GOOGLE_CLIENT_ID,  //clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-   
-  clientSecret:GOOGLE_CLIENT_SECRET,
-  callbackURL: 'http://localhost:3000/auth/google/callback',
-}, (accessToken, refreshToken, profile, done) => {
-  // Check if user already exists in DB
-  User.findOne({ email: profile.emails[0].value }).then(user => {
-    if (user) {
-      done(null, user);
-    } else {
-      const newUser = new User({
-        nom: profile.name.givenName,
-        prenom: profile.name.familyName,
-        email: profile.emails[0].value,
-        date: new Date().toISOString(),
-        password: '',
-        phone: '',  // You can set this later if required
-        region: '',
-        gender: '',
-      });
+    clientID: process.env.GOOGLE_CLIENT_ID || '95644263598-p1ko0g4ds7ko6v6obqkdc38j76ndjmt2.apps.googleusercontent.com',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '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',
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || 'https://abc123.ngrok.io/auth/google/callback'
 
-      newUser.save().then(() => done(null, newUser));
+  },
+  async (accessToken, refreshToken, profile, done) => {
+    try {
+      // Vérifiez si l'utilisateur existe déjà dans votre base de données
+      let user = await User.findOne({ email: profile.emails[0].value });
+      if (!user) {
+        // Créez un nouvel utilisateur si nécessaire
+        user = new User({
+          nom: profile.name.givenName,
+          prenom: profile.name.familyName,
+          email: profile.emails[0].value,
+          password: 'GOOGLE_AUTH', // Mot de passe factice pour les utilisateurs Google
+        });
+        await user.save();
+      }
+      return done(null, user);
+    } catch (error) {
+      return done(error, null);
     }
-  });
-}));
+  }
+));
 
-passport.serializeUser((user, done) => done(null, user));
-passport.deserializeUser((user, done) => done(null, user));
+// verify-token
+app.get('/api/verify-token', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ valid: false, message: 'No token provided' });
+    }
 
-// Routes
-app.get('/', (req, res) => {
-  res.send('<a href="/auth/google">Login with Google</a>');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    
+    if (!user) {
+      return res.status(401).json({ valid: false, message: 'User not found' });
+    }
+
+    return res.status(200).json({ valid: true, userId: user._id });
+  } catch (error) {
+    return res.status(401).json({ valid: false, message: 'Invalid token' });
+  }
 });
 
+// Google Authentication Routes
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
-  res.redirect('/profile');
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/' }),
+  (req, res) => {
+    console.log('Utilisateur authentifié:', req.user);
+    const token = jwt.sign(
+      { id: req.user._id, email: req.user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    res.redirect(`${process.env.FRONTEND_URL || 'http://192.168.1.189:3000'}?token=${token}`);
+  }
+);
+
+// Email configuration
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER || 'yosrbencheikh28@gmail.com',
+    pass: process.env.EMAIL_PASS || 'xqzc yhwk kdvi pmdy',
+  },
 });
 
-app.get('/profile', (req, res) => {
-  res.send(`Welcome ${req.user.displayName}`);
+transporter.verify((error, success) => {
+  if (error) {
+    console.log('Error in transporter configuration:', error);
+  } else {
+    console.log('Transporter is ready to send emails');
+  }
 });
 
-app.get('/logout', (req, res) => {
-  req.logout(() => {
-    res.redirect('/');
-  });
-});
+// Temporary storage for reset codes
+const resetCodes = new Map(); // { email: { code, expiresAt } }
 
 // Registration Route
 app.post('/api/users', async (req, res) => {
   try {
-    const { nom, prenom, email, date, password, phone, region, gender } = req.body;
-    if (!nom || !prenom || !email || !date || !password || !phone || !region || !gender) {
+    const { nom, prenom, email, password, phone, region, gender } = req.body;
+
+    if (!nom || !prenom || !email || !password || !phone || !region || !gender) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 
@@ -129,16 +145,29 @@ app.post('/api/users', async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ nom, prenom, email, date, password: hashedPassword, phone, region, gender });
+    const newUser = new User({
+      nom, prenom, email, password: hashedPassword,
+      phone, region, gender
+    });
 
-    await newUser.save();
-    return res.status(201).json({ message: 'User registered successfully' });
+    await newUser.save();  // Sauvegarde l'utilisateur dans MongoDB
+    const token = jwt.sign(
+      { id: newUser._id, email: newUser.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
 
+    return res.status(201).json({
+      message: 'User registered successfully',
+      userId: newUser._id,
+      token
+    });
   } catch (err) {
     console.error('Registration error:', err);
-    return res.status(500).json({ message: 'Error registering user' });
+    return res.status(500).json({ message: 'Error registering user', error: err.message });
   }
 });
+
 
 // Login Route
 app.post('/api/login', async (req, res) => {
@@ -148,7 +177,6 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Verify user in DB
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
@@ -159,42 +187,20 @@ app.post('/api/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Create a JWT token after validation
-    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
 
-    res.status(200).json({ message: 'Login successful', token });
-
+    return res.status(200).json({ message: 'Login successful', token });
   } catch (err) {
-    return res.status(500).json({ message: 'Error logging in user' });
+    console.error('Login error:', err);
+    return res.status(500).json({ message: 'Error logging in user', error: err.message });
   }
 });
 
-// Start the server
-app.listen(3000, () => {
-  console.log('Server is running on port 3000');
-});
-
-
-// Temporary storage for reset codes
-const resetCodes = new Map(); // { email: { code, expiresAt } }
-
-// Email setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail', // Or your SMTP service
-  auth: {
-    user: 'yosrbencheikh28@gmail.com',
-    pass: 'xqzc yhwk kdvi pmdy',
-  },
-});
-transporter.verify((error, success) => {
-  if (error) {
-    console.log('Error in transporter configuration:', error);
-  } else {
-    console.log('Transporter is ready to send emails');
-  }
-});
-
-// Forgot Password Route - Send Code
+// Forgot Password Route
 app.post('/api/forgot-password', async (req, res) => {
   const { email } = req.body;
   const user = await User.findOne({ email });
@@ -203,19 +209,12 @@ app.post('/api/forgot-password', async (req, res) => {
     return res.status(404).send({ message: 'User not found' });
   }
 
-  // Generate a 6-digit reset code
   const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 5 * 60 * 1000; // Expires in 5 minutes
-
-  // Store reset code temporarily
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
   resetCodes.set(email, { code: resetCode, expiresAt });
 
-  // Debug log to confirm reset code storage
-  console.log(`Storing reset code for ${email}: ${resetCode}, expires at: ${new Date(expiresAt)}`);
-
-  // Send email with the reset code
   const mailOptions = {
-    from:'yosrbencheikh28@gmail.com',
+    from: process.env.EMAIL_USER || 'yosrbencheikh28@gmail.com',
     to: email,
     subject: 'Password Reset Code',
     html: `
@@ -225,52 +224,7 @@ app.post('/api/forgot-password', async (req, res) => {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-          }
-          .email-container {
-            width: 100%;
-            background-color: #ffffff;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            border: 1px solid #ddd;
-          }
-          .email-header {
-            background-color: #007BFF;
-            color: #ffffff;
-            padding: 20px;
-            text-align: center;
-            border-radius: 5px;
-          }
-          .email-header h1 {
-            margin: 0;
-          }
-          .email-body {
-            padding: 20px;
-            font-size: 16px;
-            color: #333;
-          }
-          .email-footer {
-            background-color: #f4f4f4;
-            text-align: center;
-            padding: 10px;
-            font-size: 12px;
-            color: #777;
-          }
-          .code {
-            display: inline-block;
-            padding: 12px 20px;
-            background-color:rgb(51, 183, 183);
-            color: white;
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            border-radius: 5px;
-          }
+          /* Your email styles here */
         </style>
       </head>
       <body>
@@ -280,35 +234,20 @@ app.post('/api/forgot-password', async (req, res) => {
           </div>
           <div class="email-body">
             <p>Dear ${email},</p>
-            <p>We received a request to reset your password. To proceed, please use the verification code below:</p>
-            <div class="code">
-              ${resetCode}
-            </div>
-            <p>Please enter this code on the password reset page to continue.</p>
-            <p>If you didn't request a password reset, please ignore this email or let us know.</p>
-          </div>
-          <div class="email-footer">
-            <p>Best regards,</p>
-            <p>Your Company Name</p>
-            <p>www.yourwebsite.com</p>
+            <p>Your verification code is: ${resetCode}</p>
+            <p>This code will expire in 5 minutes.</p>
           </div>
         </div>
       </body>
       </html>
     `
   };
-  
-
 
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       console.error('Error sending email:', error);
-      return res.status(500).send({
-        message: 'Error sending email',
-        error: error.response ? error.response : error.message,
-      });
+      return res.status(500).send({ message: 'Error sending email', error });
     }
-    console.log('Email sent: ' + info.response);
     res.status(200).send({ message: 'Reset code sent to email' });
   });
 });
@@ -316,32 +255,12 @@ app.post('/api/forgot-password', async (req, res) => {
 // Verify Code Route
 app.post('/api/verify-code', (req, res) => {
   const { email, code } = req.body;
-
-  // Debug log to track the code verification process
-  console.log(`Verifying code for email: ${email}`);
-
   const storedData = resetCodes.get(email);
 
-  // Check if the stored data exists and the code matches
-  if (!storedData) {
-    console.log(`No stored reset data for email: ${email}`);
+  if (!storedData || storedData.code !== code || Date.now() > storedData.expiresAt) {
     return res.status(400).send({ message: 'Invalid or expired code' });
   }
 
-  if (storedData.code !== code) {
-    console.log(`Incorrect code for ${email}. Expected: ${storedData.code}, received: ${code}`);
-    return res.status(400).send({ message: 'Invalid or expired code' });
-  }
-
-  // Check if the code has expired
-  if (Date.now() > storedData.expiresAt) {
-    resetCodes.delete(email); // Remove expired code
-    console.log(`Code for ${email} has expired.`);
-    return res.status(400).send({ message: 'Code has expired' });
-  }
-
-  // Debug log if the code is valid
-  console.log(`Code verified for email: ${email}`);
   res.status(200).send({ message: 'Code verified' });
 });
 
@@ -350,305 +269,121 @@ app.post('/api/reset-password', async (req, res) => {
   const { email, code, newPassword } = req.body;
   const storedData = resetCodes.get(email);
 
-  // Debug log to track the reset password process
-  console.log(`Resetting password for email: ${email}`);
-
-  if (!storedData || storedData.code !== code) {
-    console.log(`Invalid or expired code for ${email}`);
+  if (!storedData || storedData.code !== code || Date.now() > storedData.expiresAt) {
     return res.status(400).send({ message: 'Invalid or expired code' });
   }
 
-  // Check if the code has expired
-  if (Date.now() > storedData.expiresAt) {
-    resetCodes.delete(email); // Remove expired code
-    console.log(`Code for ${email} has expired during password reset.`);
-    return res.status(400).send({ message: 'Code has expired' });
+  try {
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await User.findOneAndUpdate({ email }, { password: hashedPassword });
+    resetCodes.delete(email);
+    res.status(200).send({ message: 'Password has been reset successfully' });
+  } catch (error) {
+    res.status(500).send({ message: 'Error resetting password' });
   }
-
-  // Hash new password and update user
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  await User.findOneAndUpdate({ email }, { password: hashedPassword });
-
-  // Remove reset code after successful reset
-  resetCodes.delete(email);
-
-  // Debug log when the password is successfully reset
-  console.log(`Password for ${email} has been reset successfully.`);
-  res.status(200).send({ message: 'Password has been reset successfully' });
 });
 
-// Other existing routes (unchanged)
+// Facebook Authentication Setup
+passport.use(new FacebookStrategy({
+    clientID: process.env.FACEBOOK_CLIENT_ID || '1304521740805476',
+    clientSecret: process.env.FACEBOOK_CLIENT_SECRET || '0f14d7edea3140df0913c5c7ce734710',
+    callbackURL: process.env.FACEBOOK_CALLBACK_URL || 'http://192.168.1.189:3000/auth/facebook/callback',
+  },
+  async (accessToken, refreshToken, profile, cb) => {
+    try {
+      let user = await User.findOne({
+        email: profile.emails[0].value
+      });
+
+      if (!user) {
+        user = new User({
+          nom: profile.name.givenName,
+          prenom: profile.name.familyName,
+          email: profile.emails[0].value,
+          date: new Date().toISOString(),
+          password: 'FACEBOOK_AUTH',
+          phone: 'N/A',
+          region: 'N/A',
+          gender: 'N/A',
+        });
+        await user.save();
+      }
+      return cb(null, user);
+    } catch (error) {
+      return cb(error, null);
+    }
+  }
+));
+
+// Facebook Authentication Routes
+app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+
+app.get('/auth/facebook/callback',
+  passport.authenticate('facebook', { failureRedirect: '/login' }),
+  (req, res) => {
+    const token = jwt.sign(
+      { id: req.user._id, email: req.user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+    res.redirect(`${process.env.FRONTEND_URL || 'http://192.168.1.189:3000'}?token=${token}`);
+  }
+);
+
+// User Management Routes
 app.get('/api/users/:email', async (req, res) => {
   try {
     const user = await User.findOne({ email: req.params.email });
     if (user) {
       return res.status(200).send(user);
-    } else {
-      return res.status(404).send({ message: 'User not found' });
     }
+    return res.status(404).send({ message: 'User not found' });
   } catch (err) {
     return res.status(500).send({ message: 'Error retrieving user' });
   }
 });
 
-app.post('/api/users', async (req, res) => {
-  try {
-    const { nom, prenom, email, date, password, phone, region, gender } = req.body;
-    if (!nom || !prenom || !email || !date || !password || !phone || !region || !gender) {
-      return res.status(400).json({ message: 'All fields are required' });
-    }
-
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ nom, prenom, email, date, password: hashedPassword, phone, region, gender });
-
-    await newUser.save();
-    return res.status(201).json({ message: 'User registered successfully' });
-
-  } catch (err) {
-    console.error('Registration error:', err);
-    return res.status(500).json({ message: 'Error registering user' });
-  }
-});
-
-
-// Login Route
-app.post('/api/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    // Validate the input
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
-
-    // Check if the user exists in the database
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    // Compare the password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: user._id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    // Return the response with the token
-    return res.status(200).json({ message: 'Login successful', token });
-
-  } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ message: 'Error logging in user', error: err.message });
-  }
-});
-
-
-
-app.get('/api/users', async (req, res) => {
-  const users = await User.find();
-  res.status(200).json(users);
-});
-
 app.put('/api/users/:id', async (req, res) => {
   try {
-    const { nom, email, password } = req.body;
-    const { id } = req.params;
-
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
-
-    if (!process.env.JWT_SECRET) {
-      throw new Error('JWT_SECRET is not defined in the environment variables');
-    }
-    let updatedPassword = password;
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updatedPassword = await bcrypt.hash(password, salt);
-    }
-
+    const { nom, email, dateNaissance, region, genre } = req.body;
     const updatedUser = await User.findByIdAndUpdate(
-      id,
-      { nom, email, password: updatedPassword },
+      req.params.id,
+      {
+        nom,
+        email,
+        dateNaissance,
+        region,
+        genre,
+        ...(req.body.password && {
+          password: await bcrypt.hash(req.body.password, 10)
+        })
+      },
       { new: true }
     );
-
-    const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    return res.status(200).json({ message: 'Login successful', token });
-
+    return res.status(200).json({ message: 'Profile updated successfully', user: updatedUser });
   } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ message: 'Error logging in user', error: err.message });
+    return res.status(500).json({ message: 'Error updating user', error: err.message });
   }
 });
 
-// Google Login Route
-app.post('/api/google-login', async (req, res) => {
-  const { token } = req.body;  // Le token envoyé par le client Flutter
-
-  try {
-    // Vérifiez et validez le token Google
-    const ticket = await googleClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID, // Assurez-vous de configurer correctement votre GOOGLE_CLIENT_ID dans le .env
-    });
-
-    const payload = ticket.getPayload();  // Récupérez les informations de l'utilisateur à partir du token validé
-
-    // Vérifiez si l'utilisateur existe déjà dans MongoDB
-    let user = await User.findOne({ email: payload.email });
-
-    if (!user) {
-      // Si l'utilisateur n'existe pas, créez-le dans MongoDB
-      user = new User({
-        nom: payload.given_name,  // Utilisez les informations fournies par Google
-        prenom: payload.family_name,
-        email: payload.email,
-        date: new Date().toISOString(),
-        password: 'N/A',  // Vous pouvez ne pas avoir de mot de passe ici, car l'utilisateur se connecte via Google
-        phone: 'N/A',
-        region: 'N/A',
-        gender: 'N/A',
-      });
-
-      await user.save();
-    }
-
-    // Générez un JWT pour l'utilisateur après avoir validé son login avec Google
-    const tokenJwt = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-    return res.status(200).json({
-      message: 'Google login successful',
-      token: tokenJwt,
-      user: {
-        nom: user.nom,
-        prenom: user.prenom,
-        email: user.email,
-      },
-    });
-
-  } catch (error) {
-    console.error('Error during Google login:', error);
-    return res.status(400).json({ message: 'Invalid Google token', error: error.message });
-  }
-});
-
-// Global Error Handler
+// Error Handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
-const router = express.Router();
-require('dotenv').config();
 
-passport.use(
-  new FacebookStrategy(
-    {
-      clientID: '1304521740805476',  // Replace with your own Facebook App ID
-      clientSecret: '0f14d7edea3140df0913c5c7ce734710',  // Replace with your own Facebook App Secret
-      callbackURL: 'http://localhost:3000/auth/facebook/callback',
-    },
-    async (accessToken, refreshToken, profile, cb) => {
-      const user = await User.findOne({
-        accountId: profile.id,
-        provider: 'facebook',
-      });
-
-      if (!user) {
-        console.log('Adding new Facebook user to DB..');
-        const newUser = new User({
-          accountId: profile.id,
-          name: profile.displayName,
-          provider: profile.provider,
-        });
-        await newUser.save();
-        return cb(null, profile);
-      } else {
-        console.log('Facebook user already exists in DB..');
-        return cb(null, profile);
-      }
-    }
-  )
-);
-
-// Route to handle Facebook login from Flutter app
-router.post('/api/facebook-login', async (req, res) => {
-  try {
-    const { accessToken } = req.body;
-
-    // Step 1: Verify the token with Facebook
-    const response = await axios.get(
-      `https://graph.facebook.com/me?access_token=${accessToken}&fields=id,name,email`
-    );
-
-    if (response.data && response.data.id) {
-      // Step 2: Authenticate with Passport
-      passport.authenticate('facebook', (err, user) => {
-        if (err) {
-          return res.status(500).send('Error during authentication');
-        }
-
-        if (user) {
-          // Generate a JWT or session token (example below)
-          const token = 'generated-token-here';  // Replace with your JWT generation logic
-          return res.json({ token, user });
-        } else {
-          return res.status(401).send('Facebook user not authenticated');
-        }
-      })(req, res); // Trigger passport's authentication
-    } else {
-      return res.status(400).send('Invalid Facebook access token');
-    }
-  } catch (error) {
-    console.error('Error during Facebook login:', error);
-    return res.status(500).send('Internal Server Error');
+// Home route
+app.get('/', (req, res) => {
+  if (req.isAuthenticated()) {
+    res.send(`Welcome ${req.user.name.givenName} ${req.user.name.familyName}`);
+  } else {
+    res.send('<a href="/auth/google">Login with Google</a>');
   }
 });
 
-// Add route to handle Facebook authentication via passport
-router.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-
-// Handle Facebook callback
-router.get(
-  '/auth/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: '/auth/facebook/error' }),
-  (req, res) => {
-    // Successful login
-    res.redirect('/auth/facebook/success');
-  }
-);
-
-// Handle success and failure routes
-router.get('/auth/facebook/success', (req, res) => {
-  res.send('Facebook login successful');
-});
-
-router.get('/auth/facebook/error', (req, res) => {
-  res.send('Error logging in via Facebook');
-});
-
-// Add the router to your app
-app.use(router);
-
-// Your server setup (e.g., listening on port 3000)
-
+// Start the server
 const PORT = process.env.PORT || 3000;
-
+app.listen(PORT, () => {
+  console.log(`✅ Server is running on port ${PORT}`);
+  console.log(`🔗 Google Login URL: http://localhost:${PORT}/auth/google`);
+});
