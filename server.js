@@ -7,14 +7,29 @@ const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
+const app = express();
+const cors = require('cors');
+const nodemailer = require('nodemailer');
+app.use(cors());
+app.use(express.json());
+//upload image
+const path=require("path");
+app.use("/images", express.static(path.join(__dirname, "images")));
 
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
+// Upload route
+app.use("/api/upload", require("./routes/upload"));
 
+//
 dotenv.config(); // Load environment variables
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Remplacez avec votre ID client Google
 process.env.JWT_SECRET = 'your_very_secure_secret_key';
-const cors = require('cors');
-const nodemailer = require('nodemailer');
+
 
 const session = require('express-session');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
@@ -24,20 +39,44 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
  // Load environment variables
 process.env.JWT_SECRET = 'your_very_secure_secret_key';
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+
 
 
 // MongoDB connection
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/Opti_app', { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('✅ MongoDB connected successfully'))
-  .catch(err => console.error('❌ MongoDB Connection Error:', err));
+
+  mongoose.connect('mongodb://localhost:27017/Opti_app')
+  .then(async () => {
+    console.log('✅ MongoDB connected successfully');
+    
+    // Log database info
+    const db = mongoose.connection.db;
+    const collections = await db.listCollections().toArray();
+    console.log('\nDatabase Collections:', collections.map(c => c.name));
+    
+    // Check users collection
+    const usersCount = await db.collection('users').countDocuments();
+    console.log('Total users in database:', usersCount);
+    
+    // Sample first user
+    const sampleUser = await db.collection('users').findOne({});
+    console.log('Sample user structure:', 
+      sampleUser ? Object.keys(sampleUser) : 'No users found'
+    );
+  });
+  mongoose.connection.on('connected', () => {
+    console.log('Mongoose connected to:', mongoose.connection.host);
+    console.log('Database:', mongoose.connection.name);
+    console.log('Collection:', User.collection.name);
+  });
+  
+  mongoose.connection.on('error', (err) => {
+    console.error('Mongoose connection error:', err);
+  });
 
 // CORS Configuration
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST'],
+  origin: 'http://192.168.1.18:3000',  // Allow requests from this origin (adjust if needed)
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
@@ -55,7 +94,8 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // User model
-const User = mongoose.model('User', new mongoose.Schema({
+
+const userSchema = new mongoose.Schema({
   nom: { type: String, required: true },
   prenom: { type: String, required: true },
   email: { type: String, required: true, unique: true },
@@ -64,7 +104,14 @@ const User = mongoose.model('User', new mongoose.Schema({
   phone: { type: String, required: true },
   region: { type: String, required: true },
   genre: { type: String, required: true },
-}));
+  imageUrl: { type: String, required: false }
+}, { collection: 'users' }); // Explicitly set collection name
+
+// Log the schema definition
+console.log('User Schema Definition:', userSchema.obj);
+
+const User = mongoose.model('User', userSchema);
+module.exports = User;
 const GOOGLE_CLIENT_ID = '95644263598-f0kl6h2bh00hcng322rn4a57dj5ubgje.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET= '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'
 // Google Strategy Setup
@@ -100,7 +147,8 @@ passport.deserializeUser((user, done) => done(null, user));
 
 // Routes
 app.get('/', (req, res) => {
-  res.send('<a href="/auth/google">Login with Google</a>');
+  console.log('Root endpoint hit');
+  res.status(200).json({ message: 'Server is running' });
 });
 
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
@@ -113,10 +161,26 @@ app.get('/profile', (req, res) => {
   res.send(`Welcome ${req.user.displayName}`);
 });
 
-app.get('/logout', (req, res) => {
-  req.logout(() => {
-    res.redirect('/');
-  });
+app.put("/users/:userId/image", async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const { imageUrl } = req.body;
+
+    // Update the user's imageUrl in the database
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { imageUrl: imageUrl },
+      { new: true } // Return the updated user
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Registration Route
@@ -191,10 +255,10 @@ app.post('/api/login', async (req, res) => {
     return res.status(500).json({ message: 'Error logging in user' });
   }
 });
-
+const PORT = process.env.PORT || 3000;
 // Start the server
-app.listen(3000, () => {
-  console.log('Server is running on port 3000');
+app.listen(3000, '0.0.0.0', () => {
+  console.log('Server running on http://0.0.0.0:3000');
 });
 
 
@@ -492,6 +556,7 @@ app.put('/api/users/:id', async (req, res) => {
     const { nom,prenom, email, date, region, genre } = req.body;
     const { id } = req.params;
 
+
     const user = await User.findById(id);
     if (!user) {
       return res.status(400).json({ message: 'user not found' });
@@ -528,95 +593,57 @@ app.put('/api/users/:id', async (req, res) => {
   }
 });
 
-app.get('/api/users/:id', async (req, res) => {
+// In your Node.js user route
+app.get('/api/users/:userId', async (req, res) => {
   try {
-    // Extract the id from the URL parameters
-    const { id } = req.params;
-    console.log('Received params:', req.params);
+    const userId = req.params.userId;
+    console.log('\n=== User Lookup Debug ===');
+    console.log('1. Requested userId:', userId);
 
-    // Check if the id is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: 'Invalid user ID format' });
-    }
+    // Verify MongoDB connection
+    console.log('2. MongoDB connection state:', mongoose.connection.readyState);
+    
+    // Try direct MongoDB query first
+    const directUser = await mongoose.connection.db.collection('users')
+      .findOne({ _id: new mongoose.Types.ObjectId(userId) });
+    
+    console.log('3. Direct MongoDB query result:', directUser ? {
+      _id: directUser._id.toString(),
+      email: directUser.email
+    } : 'Not found');
 
-    // Attempt to find the user by ID
-    const user = await User.findById(id);
-    console.log('Fetching user with ID:', id);
-    console.log('User found:', user);
+    // Try Mongoose query with debugging
+    console.log('4. Attempting Mongoose findById...');
+    const user = await User.findById(userId).lean();
+    
+    console.log('5. Mongoose query result:', user ? {
+      _id: user._id.toString(),
+      email: user.email
+    } : 'Not found');
 
-    if (!user) {
+    if (!user && directUser) {
+      console.log('6. Discrepancy detected: Document exists in MongoDB but not found via Mongoose');
+      console.log('Direct user fields:', Object.keys(directUser));
+      
+      // Try creating a new Mongoose document from the direct result
+      const userDoc = new User(directUser);
+      console.log('7. Validation result:', userDoc.validateSync() || 'Valid');
+      
+      return res.json(directUser);
+    } else if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Return user data with necessary fields
-    res.status(200).json({
-      id: user._id,
-      nom: user.nom,
-      prenom: user.prenom,
-      email: user.email,
-      date: user.date,
-      region: user.region,
-      genre: user.genre,
-      phone: user.phone,
-    });
+    res.json(user);
   } catch (error) {
-    console.error('Server Error:', error);
-    res.status(500).json({ message: 'Failed to load user data' });
+    console.error('Error in /api/users/:userId:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ message: error.message });
   }
 });
-
-
-// Google Login Route
-app.post('/api/google-login', async (req, res) => {
-  const { token } = req.body;  // Le token envoyé par le client Flutter
-
-  try {
-    // Vérifiez et validez le token Google
-    const ticket = await googleClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID, // Assurez-vous de configurer correctement votre GOOGLE_CLIENT_ID dans le .env
-    });
-
-    const payload = ticket.getPayload();  // Récupérez les informations de l'utilisateur à partir du token validé
-
-    // Vérifiez si l'utilisateur existe déjà dans MongoDB
-    let user = await User.findOne({ email: payload.email });
-
-    if (!user) {
-      // Si l'utilisateur n'existe pas, créez-le dans MongoDB
-      user = new User({
-        nom: payload.given_name,  // Utilisez les informations fournies par Google
-        prenom: payload.family_name,
-        email: payload.email,
-        date: new Date().toISOString(),
-        password: 'N/A',  // Vous pouvez ne pas avoir de mot de passe ici, car l'utilisateur se connecte via Google
-        phone: 'N/A',
-        region: 'N/A',
-        genre: 'N/A',
-      });
-
-      await user.save();
-    }
-
-    // Générez un JWT pour l'utilisateur après avoir validé son login avec Google
-    const tokenJwt = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-    return res.status(200).json({
-      message: 'Google login successful',
-      token: tokenJwt,
-      user: {
-        nom: user.nom,
-        prenom: user.prenom,
-        email: user.email,
-      },
-    });
-
-  } catch (error) {
-    console.error('Error during Google login:', error);
-    return res.status(400).json({ message: 'Invalid Google token', error: error.message });
-  }
-});
-
 // Global Error Handler
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -716,7 +743,7 @@ app.use(router);
 
 // Your server setup (e.g., listening on port 3000)
 
-const PORT = process.env.PORT || 3000;
+
 
 // Start Server
 
