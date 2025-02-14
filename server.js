@@ -5,6 +5,8 @@ const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
+const session = require('express-session');
+
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
 const app = express();
@@ -28,14 +30,11 @@ app.use("/api/upload", require("./routes/upload"));
 //
 dotenv.config(); // Load environment variables
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Remplacez avec votre ID client Google
-process.env.JWT_SECRET = 'your_very_secure_secret_key';
+process.e
 
 
-const session = require('express-session');
-const passport = require('passport');
-const FacebookStrategy = require('passport-facebook').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const axios = require('axios');
+
 
 // Import the User model
 const User = require('./models/User');
@@ -84,7 +83,15 @@ app.use(cors({
 ));
 
 
-
+app.use(session({
+  secret: 'cfghjklmghjk', // Replace with a secure secret key
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
 // Middleware setup
 app.use(cors({
   resave: false, 
@@ -92,6 +99,18 @@ app.use(cors({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (err) {
+    done(err);
+  }
+});
 
 // User model
 
@@ -110,7 +129,7 @@ const userSchema = new mongoose.Schema({
 // Log the schema definition
 console.log('User Schema Definition:', userSchema.obj);
 
-const User = mongoose.model('User', userSchema);
+
 module.exports = User;
 
 
@@ -152,7 +171,7 @@ app.get('/api/verify-token', async (req, res) => {
     }});
 
 // Routes
-app.get('/', async (req, res) => {
+/*app.get('/', async (req, res) => {
   console.log('Root endpoint hit');
   res.status(200).json({ message: 'Server is running' });
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -164,7 +183,7 @@ app.get('/', async (req, res) => {
 
     return res.status(200).json({ valid: true, userId: user._id });
   
-});
+});*/
 
 // Google Authentication Routes
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
@@ -182,7 +201,13 @@ app.get('/auth/google/callback',
   }
 );
 // Email configuration
-
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // Or your SMTP service
+  auth: {
+    user: 'yosrbencheikh28@gmail.com',
+    pass: 'xqzc yhwk kdvi pmdy',
+  },
+});
 
 transporter.verify((error, success) => {
   if (error) {
@@ -297,13 +322,7 @@ app.listen(3000, '0.0.0.0', () => {
 const resetCodes = new Map(); // { email: { code, expiresAt } }
 
 // Email setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail', // Or your SMTP service
-  auth: {
-    user: 'yosrbencheikh28@gmail.com',
-    pass: 'xqzc yhwk kdvi pmdy',
-  },
-});
+
 transporter.verify((error, success) => {
   if (error) {
     console.log('Error in transporter configuration:', error);
@@ -622,20 +641,13 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
 
-// Home route
-app.get('/', (req, res) => {
-  if (req.isAuthenticated()) {
-    res.send(`Welcome ${req.user.name.givenName} ${req.user.name.familyName}`);
-  } else {
-    res.send('<a href="/auth/google">Login with Google</a>');
-  }
-});
+
 
 // Add route to handle Facebook authentication via passport
-router.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
 
 // Handle Facebook callback
-router.get(
+app.get(
   '/auth/facebook/callback',
   passport.authenticate('facebook', { failureRedirect: '/auth/facebook/error' }),
   (req, res) => {
@@ -645,16 +657,16 @@ router.get(
 );
 
 // Handle success and failure routes
-router.get('/auth/facebook/success', (req, res) => {
+app.get('/auth/facebook/success', (req, res) => {
   res.send('Facebook login successful');
 });
 
-router.get('/auth/facebook/error', (req, res) => {
+app.get('/auth/facebook/error', (req, res) => {
   res.send('Error logging in via Facebook');
 });
 
 // Add the router to your app
-app.use(router);
+
 
 // Your server setup (e.g., listening on port 3000)
 
