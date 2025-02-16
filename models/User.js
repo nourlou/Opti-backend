@@ -8,7 +8,9 @@ const userSchema = new mongoose.Schema({
   password: { type: String, required: true },
   phone: { type: String, required: true },
   region: { type: String, required: true },
-  gender: { type: String, required: true },
+  genre: { type: String, required: true },
+  imageUrl: { type: String, required: false }
+
 });
 
 module.exports = mongoose.model('User', userSchema);

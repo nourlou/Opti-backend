@@ -28,12 +28,14 @@ app.use((req, res, next) => {
 app.use("/api/upload", require("./routes/upload"));
 
 //
-dotenv.config(); // Load environment variables
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID); // Remplacez avec votre ID client Google
+//google route
+app.use('/auth', require('./routes/googleAuth'));
+app.use('/auth', require('./routes/facebookAuth'));
+//
+dotenv.config(); // Load environment variables// Remplacez avec votre ID client Google
 process.e
 
 
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
 
 // Import the User model
@@ -133,33 +135,7 @@ console.log('User Schema Definition:', userSchema.obj);
 module.exports = User;
 
 
-// Google Authentication Setup
-passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID || '95644263598-p1ko0g4ds7ko6v6obqkdc38j76ndjmt2.apps.googleusercontent.com',
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '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',
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || 'https://abc123.ngrok.io/auth/google/callback'
 
-  },
-  async (accessToken, refreshToken, profile, done) => {
-    try {
-      // Vérifiez si l'utilisateur existe déjà dans votre base de données
-      let user = await User.findOne({ email: profile.emails[0].value });
-      if (!user) {
-        // Créez un nouvel utilisateur si nécessaire
-        user = new User({
-          nom: profile.name.givenName,
-          prenom: profile.name.familyName,
-          email: profile.emails[0].value,
-          password: 'GOOGLE_AUTH', // Mot de passe factice pour les utilisateurs Google
-        });
-        await user.save();
-      }
-      return done(null, user);
-    } catch (error) {
-      return done(error, null);
-    }
-  }
-));
 
 // verify-token
 app.get('/api/verify-token', async (req, res) => {
@@ -185,21 +161,8 @@ app.get('/api/verify-token', async (req, res) => {
   
 });*/
 
-// Google Authentication Routes
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
-app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/' }),
-  (req, res) => {
-    console.log('Utilisateur authentifié:', req.user);
-    const token = jwt.sign(
-      { id: req.user._id, email: req.user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-    res.redirect(`${process.env.FRONTEND_URL || 'http://192.168.1.189:3000'}?token=${token}`);
-  }
-);
+
 // Email configuration
 const transporter = nodemailer.createTransport({
   service: 'gmail', // Or your SMTP service
@@ -435,7 +398,7 @@ passport.use(new FacebookStrategy({
           password: 'FACEBOOK_AUTH',
           phone: 'N/A',
           region: 'N/A',
-          gender: 'N/A',
+          genre: 'N/A',
         });
         await user.save();
       }
