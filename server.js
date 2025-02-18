@@ -80,7 +80,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key'
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://192.168.1.18:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://192.168.1.22:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 
@@ -506,46 +506,79 @@ app.get('/api/users', async (req, res) => {
   const users = await User.find();
   res.status(200).json(users);
 });
+// Define the EMAIL_REGEX for email validation
+// Define the EMAIL_REGEX for email validation
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/update/:email', express.json(), async (req, res) => {
   try {
-    const { nom,prenom, email, date, region, genre } = req.body;
-    const { id } = req.params;
-
-
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(400).json({ message: 'user not found' });
+    console.log('Request body:', req.body);
+    console.log('Request headers:', req.headers);
+    
+    const userEmail = req.params.email;
+    
+    if (!EMAIL_REGEX.test(userEmail)) {
+      return res.status(400).json({
+        message: 'Invalid email format',
+        details: 'Please provide a valid email address'
+      });
     }
 
-    // If the password is provided, hash it, otherwise, keep the old one
-    let updatedPassword = user.password;
-    if (req.body.password) {
-      const salt = await bcrypt.genSalt(10);
-      updatedPassword = await bcrypt.hash(req.body.password, salt);
+    // Check if user exists
+    const existingUser = await User.findOne({ email: userEmail });
+    if (!existingUser) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    // Update user data
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
-      {
-        nom,
-        prenom,
-        email,
-        date,
-        region,
-        genre,
-        ...(req.body.password && {
-          password: await bcrypt.hash(req.body.password, 10)
-        })
-      },
-      { new: true }
-    );
-    return res.status(200).json({ message: 'Profile updated successfully', user: updatedUser });
+    // Create update object with only provided fields
+    const updateFields = {};
+    const { nom, prenom, email, date, phone, region, genre, password } = req.body;
+
+    if (nom) updateFields.nom = nom;
+    if (prenom) updateFields.prenom = prenom;
+    if (email && email !== userEmail) {
+      // Check if new email is already taken
+      const emailExists = await User.findOne({ email });
+      if (emailExists) {
+        return res.status(400).json({ message: 'Email already in use' });
+      }
+      updateFields.email = email;
+    }
+    if (date) updateFields.date = date;
+    if (phone) updateFields.phone = phone;
+    if (region) updateFields.region = region;
+    if (genre) updateFields.genre = genre;
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateFields.password = hashedPassword;
+    }
+
+    // Update user with new fields
+    const updatedUser = await User.findOneAndUpdate(
+      { email: userEmail },
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    ).select('-password -__v');
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'Update failed' });
+    }
+
+    return res.status(200).json({
+      message: 'User updated successfully',
+      user: updatedUser
+    });
+
   } catch (err) {
-    return res.status(500).json({ message: 'Error updating user', error: err.message });
+    console.error('Update error:', err);
+    return res.status(500).json({
+      message: 'Error updating user',
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
+
+
 
 // In your Node.js user route
 app.get('/api/users/:userId', async (req, res) => {
