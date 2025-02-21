@@ -6,6 +6,9 @@ const dotenv = require('dotenv');
 const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
 const session = require('express-session');
+const fs = require('fs');
+const multer = require('multer');
+
 
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
@@ -18,6 +21,28 @@ app.use(express.json());
 const path=require("path");
 app.use("/images", express.static(path.join(__dirname, "images")));
 
+
+// Configuration du dossier des images
+const imagesDir = path.join(__dirname, "ProductImages");
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir, { recursive: true });
+  fs.chmodSync(imagesDir, 0o777);
+}
+const upload = multer({ dest: 'ProductImages/' }); // Ajoutez cette ligne
+const uploadProducts = require("./routes/uploadProducts");
+const productRoutes = require('./routes/products');
+
+app.use("/ProductImages", express.static(imagesDir));
+app.use("/upload", uploadProducts);
+
+app.use("/ProductImages", express.static(imagesDir));
+
+app.use("/api/products", productRoutes);
+
+app.use("/api/product", require("./routes/uploadProducts"));
+
+app.use("/", uploadProducts);
+
 // Logging middleware
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -27,8 +52,7 @@ app.use((req, res, next) => {
 // Upload route
 app.use("/api/upload", require("./routes/upload"));
 app.use("/opticiens", require("./routes/opticiens"));
-app.use("/api/products", require("./routes/products"));
-app.use("/upload", require("./routes/uploadProducts"));
+
 
 //
 //google route
@@ -115,7 +139,7 @@ app.post('/api/refresh-token', async (req, res) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://192.168.1.22:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 
@@ -305,7 +329,7 @@ app.post('/api/login', async (req, res) => {
     
 
     // Save refresh token to user and persist changes
-    user.refreshTokens.push(refreshToken);
+   // user.refreshTokens.push(refreshToken);
     await user.save(); // Persist the refresh token
 
     // Return both tokens to the client

@@ -11,38 +11,37 @@ if (!fs.existsSync(imagesDir)) {
   fs.mkdirSync(imagesDir, { recursive: true });
 }
 
+// Configuration de multer
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, imagesDir); // Spécifier le dossier ProductImages pour les téléchargements
+    const uploadPath = path.join(__dirname, "../ProductImages");
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
-    // Renommer le fichier pour garantir des noms uniques
-    cb(
-      null,
-      new Date().toISOString().replace(/:/g, "-") + "-" + file.originalname
-    );
-  },
+    cb(null, Date.now() + '-' + path.extname(file.originalname));
+  }
 });
 
 const upload = multer({ storage: storage });
 
-// Route pour télécharger les images
-router.post("/", upload.single("image"), (req, res) => {
+router.post("/upload", upload.single("image"), (req, res) => {
+  console.log("Requête d'upload reçue");
   try {
     if (!req.file) {
-      console.log('Aucune image téléchargée');
+      console.log("Aucun fichier reçu");
       return res.status(400).json({ message: "Aucune image téléchargée" });
     }
-
-    // Retourner l'URL de l'image relative au dossier ProductImages
-    const imageUrl = `${req.protocol}://${req.get("host")}/ProductImage/${req.file.filename}`;
-    console.log('Image téléchargée avec succès. URL:', imageUrl);
+    
+    console.log("Fichier reçu:", req.file);
+    const imageUrl = $req.protocol;//${req.get("host")}/ProductImages/${req.file.filename};
+    console.log("URL générée:", imageUrl);
+    
     res.status(200).json({
       message: "Image téléchargée avec succès",
       imageUrl: imageUrl,
     });
   } catch (error) {
-    console.error('Erreur lors du téléchargement de l\'image:', error);
+    console.error('Erreur lors du téléchargement:', error);
     res.status(500).json({ error: error.message });
   }
 });
