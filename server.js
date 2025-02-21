@@ -33,7 +33,6 @@ if (!fs.existsSync(imagesDir)) {
 const upload = multer({ dest: 'ProductImages/' }); // Ajoutez cette ligne
 
 app.use("/ProductImages", express.static(imagesDir));
-app.use("/upload", uploadProducts);
 
 app.use("/ProductImages", express.static(imagesDir));
 
@@ -53,21 +52,16 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
-
 // Upload route
 app.use("/api/upload", require("./routes/upload"));
 app.use("/opticiens", require("./routes/opticiens"));
 
-//
 //google route
 app.use('/auth', require('./routes/googleAuth'));
 app.use('/auth', require('./routes/facebookAuth'));
-//
-dotenv.config(); // Load environment variables// Remplacez avec votre ID client Google
+
+dotenv.config(); 
 process.e
-
-
-
 
 // Import the User model
 const User = require('./models/User');
@@ -108,8 +102,6 @@ app.post('/api/refresh-token', async (req, res) => {
     res.status(401).json({ message: 'Invalid refresh token' });
   }
 });
-
-
 
 // MongoDB connection
   mongoose.connect('mongodb://localhost:27017/Opti_app')
