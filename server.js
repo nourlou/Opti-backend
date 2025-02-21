@@ -27,6 +27,8 @@ app.use((req, res, next) => {
 // Upload route
 app.use("/api/upload", require("./routes/upload"));
 app.use("/opticiens", require("./routes/opticiens"));
+app.use("/api/products", require("./routes/products"));
+app.use("/upload", require("./routes/uploadProducts"));
 
 //
 //google route
@@ -113,7 +115,7 @@ app.post('/api/refresh-token', async (req, res) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://192.168.1.22:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 
