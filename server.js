@@ -6,31 +6,17 @@ const dotenv = require('dotenv');
 const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
 const session = require('express-session');
-const productsRouter = require('./routes/products');
+
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
 const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-
-const productRoutes = require("./routes/uploadProducts");
-
-
 app.use(cors());
 app.use(express.json());
-
-// Configuration pour les images
-const path = require("path");
-
-const imagesDir = path.join(__dirname, "ProductImages");
+//upload image
+const path=require("path");
 app.use("/images", express.static(path.join(__dirname, "images")));
-
-
-app.use("/ProductImages", express.static(imagesDir));
-app.use("/api/products", productRoutes);
-app.use("/api/product", require("./routes/uploadProducts"));
-
-
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -38,7 +24,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Upload route
 app.use("/api/upload", require("./routes/upload"));
+app.use("/opticiens", require("./routes/opticiens"));
 
 //
 //google route
@@ -48,11 +36,50 @@ app.use('/auth', require('./routes/facebookAuth'));
 dotenv.config(); // Load environment variables// Remplacez avec votre ID client Google
 process.e
 
+
+
+
 // Import the User model
 const User = require('./models/User');
 
 dotenv.config(); // Load environment variables
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key';
+
+
+app.post('/api/refresh-token', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    // Verify the refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+
+    // Find the user
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid refresh token' });
+    }
+
+    // Check if the refresh token is still valid
+    if (!user.refreshTokens.includes(refreshToken)) {
+      return res.status(401).json({ message: 'Refresh token expired or invalid' });
+    }
+
+    // Generate a new access token
+    const newToken = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '1h' } // Set access token expiry
+    );
+
+    // Return the new access token
+    res.status(200).json({ token: newToken });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    res.status(401).json({ message: 'Invalid refresh token' });
+  }
+});
+
+
 
 // MongoDB connection
   mongoose.connect('mongodb://localhost:27017/Opti_app')
@@ -86,7 +113,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key'
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://192.168.1.5:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://192.168.1.22:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 
@@ -131,7 +158,8 @@ const userSchema = new mongoose.Schema({
   phone: { type: String, required: true },
   region: { type: String, required: true },
   genre: { type: String, required: true },
-  imageUrl: { type: String, required: false }
+  imageUrl: { type: String, required: false },
+  refreshTokens: [String],
 }, { collection: 'users' }); // Explicitly set collection name
 
 // Log the schema definition
@@ -147,25 +175,19 @@ module.exports = User;
 app.get('/api/verify-token', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    
-  }catch (error) {
-      return res.status(401).json({ valid: false, message: 'No token provided' });
-    }});
 
-// Routes
-/*app.get('/', async (req, res) => {
-  console.log('Root endpoint hit');
-  res.status(200).json({ message: 'Server is running' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
-    
-    if (!user) {
-      return res.status(401).json({ valid: false, message: 'User not found' });
+    if (!token) {
+      return res.status(401).json({ valid: false, message: 'No token provided' });
     }
 
-    return res.status(200).json({ valid: true, userId: user._id });
-  
-});*/
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "dfghjkl");
+    
+    return res.status(200).json({ valid: true, userId: decoded.id });
+  } catch (error) {
+    return res.status(401).json({ valid: false, message: 'Invalid or expired token' });
+  }
+});
+
 
 
 
@@ -251,78 +273,48 @@ app.post('/api/users', async (req, res) => {
 
 
 // Login Route
-// In your server's login route (Express)
 app.post('/api/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    
-    console.log('Login attempt for email:', email);
-
-    // Input validation
     if (!email || !password) {
-      console.log('Missing credentials');
-      return res.status(400).json({ 
-        status: 'error',
-        code: 'MISSING_CREDENTIALS',
-        message: 'Email and password are required' 
-      });
+      return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    // Find user
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email });
     if (!user) {
-      console.log('User not found:', email);
-      return res.status(401).json({ 
-        status: 'error',
-        code: 'INVALID_CREDENTIALS',
-        message: 'Invalid credentials' 
-      });
+      return res.status(400).json({ message: "Email not found" });
     }
 
-    // Compare passwords
-    console.log('Comparing passwords for user:', email);
-    const isMatch = await bcrypt.compare(String(password), user.password);
-    
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      console.log('Password mismatch for user:', email);
-      return res.status(401).json({ 
-        status: 'error',
-        code: 'INVALID_CREDENTIALS',
-        message: 'Invalid credentials' 
-      });
+      return res.status(400).json({ message: 'Incorrect password' });
     }
 
-    // Generate token
     const token = jwt.sign(
-      { 
-        id: user._id, 
-        email: user.email 
-      },
-      process.env.JWT_SECRET,
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET || "dfghjkl",
       { expiresIn: '1h' }
     );
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_REFRESH_SECRET || "dfcgvhbjnk,l",
+      { expiresIn: '7d' }
+    );
+    
 
-    console.log('Login successful for user:', email);
-    return res.status(200).json({ 
-      status: 'success',
-      message: 'Login successful',
-      token,
-      user: {
-        id: user._id,
-        email: user.email
-      }
-    });
+    // Save refresh token to user and persist changes
+    user.refreshTokens.push(refreshToken);
+    await user.save(); // Persist the refresh token
 
+    // Return both tokens to the client
+    return res.status(200).json({ message: 'Login successful', token, refreshToken });
   } catch (err) {
     console.error('Login error:', err);
-    return res.status(500).json({ 
-      status: 'error',
-      code: 'SERVER_ERROR',
-      message: 'Internal server error' 
-    });
+    return res.status(500).json({ message: 'Error logging in user', error: err.message });
   }
 });
-const PORT = process.env.PORT || 3000;
+
+const PORT = 3000;
 // Start the server
 app.listen(3000, '0.0.0.0', () => {
   console.log('Server running on http://0.0.0.0:3000');
@@ -468,7 +460,7 @@ app.get('/auth/facebook/callback',
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
-    res.redirect(`${process.env.FRONTEND_URL || 'http://192.168.1.5:3000'}?token=${token}`);
+    res.redirect(`${process.env.FRONTEND_URL || 'http://192.168.1.189:3000'}?token=${token}`);
   }
 );
 
@@ -508,7 +500,6 @@ app.post('/api/users', async (req, res) => {
     return res.status(500).json({ message: 'Error registering user' });
   }
 });
-
 
 
 
@@ -560,10 +551,7 @@ app.put('/api/update/:email', express.json(), async (req, res) => {
     if (phone) updateFields.phone = phone;
     if (region) updateFields.region = region;
     if (genre) updateFields.genre = genre;
-    if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      updateFields.password = hashedPassword;
-    }
+   
 
     // Update user with new fields
     const updatedUser = await User.findOneAndUpdate(
