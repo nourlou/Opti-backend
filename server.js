@@ -6,30 +6,42 @@ const dotenv = require('dotenv');
 const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
 const session = require('express-session');
-const productsRouter = require('./routes/products');
+const productRoutes = require('./routes/products');  // Assurez-vous que le chemin est correct
+const Product = require('./models/Product'); // Assurez-vous que le chemin est correct
+const uploadProducts = require("./routes/uploadProducts");
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
 const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-
-const productRoutes = require("./routes/uploadProducts");
-
+const multer = require('multer');
+const fs = require('fs');
 
 app.use(cors());
 app.use(express.json());
 
+
 // Configuration pour les images
 const path = require("path");
 
+// Configuration du dossier des images
 const imagesDir = path.join(__dirname, "ProductImages");
-app.use("/images", express.static(path.join(__dirname, "images")));
-
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir, { recursive: true });
+  fs.chmodSync(imagesDir, 0o777);
+}
+const upload = multer({ dest: 'ProductImages/' }); // Ajoutez cette ligne
 
 app.use("/ProductImages", express.static(imagesDir));
+app.use("/upload", uploadProducts);
+
+app.use("/ProductImages", express.static(imagesDir));
+
 app.use("/api/products", productRoutes);
+
 app.use("/api/product", require("./routes/uploadProducts"));
 
+app.use("/", uploadProducts);
 
 
 // Logging middleware

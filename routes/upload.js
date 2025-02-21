@@ -27,7 +27,7 @@ const upload = multer({ storage: storage });
 
 // routes/upload.js
 
-router.post("/", upload.single("image"), (req, res) => {
+router.post("/add", upload.single("image"), (req, res) => {
   try {
     if (!req.file) {
       console.log('No image uploaded');
