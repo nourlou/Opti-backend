@@ -9,7 +9,8 @@ const productSchema = new mongoose.Schema({
   prix: { type: Number, required: true },
   quantite_stock: { type: Number, required: true },
   image: { type: String},
-  type_verre: { type: String, required: true }
+  type_verre: { type: String, required: true },
+  opticienId: { type: mongoose.Schema.Types.ObjectId, ref: 'Opticien', required: true }
 });
 
 const Product = mongoose.model('Product', productSchema);

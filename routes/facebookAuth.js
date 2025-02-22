@@ -58,7 +58,14 @@ router.post('/facebook/callback', async (req, res) => {
     });
   } catch (error) {
     console.error('Facebook login error:', error);
-    res.status(500).json({ error: 'Facebook login failed' });
+    if (error.code === 11000) { // Erreur de clé dupliquée MongoDB
+      res.status(409).json({ 
+        error: "E11000 duplicate key error", 
+        message: "Email déjà utilisé" 
+      });
+    } else {
+      res.status(500).json({ error: "Erreur serveur" });
+    }
   }
 });
 

@@ -6,23 +6,21 @@ const dotenv = require('dotenv');
 const { OAuth2Client } = require('google-auth-library');
 const axios = require('axios');
 const session = require('express-session');
-const productRoutes = require('./routes/products');  // Assurez-vous que le chemin est correct
-const Product = require('./models/Product'); // Assurez-vous que le chemin est correct
-const uploadProducts = require("./routes/uploadProducts");
+const fs = require('fs');
+const multer = require('multer');
+
+
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
 const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
-const multer = require('multer');
-const fs = require('fs');
-
 app.use(cors());
 app.use(express.json());
+//upload image
+const path=require("path");
+app.use("/images", express.static(path.join(__dirname, "images")));
 
-
-// Configuration pour les images
-const path = require("path");
 
 // Configuration du dossier des images
 const imagesDir = path.join(__dirname, "ProductImages");
@@ -31,8 +29,11 @@ if (!fs.existsSync(imagesDir)) {
   fs.chmodSync(imagesDir, 0o777);
 }
 const upload = multer({ dest: 'ProductImages/' }); // Ajoutez cette ligne
+const uploadProducts = require("./routes/uploadProducts");
+const productRoutes = require('./routes/products');
 
 app.use("/ProductImages", express.static(imagesDir));
+app.use("/upload", uploadProducts);
 
 app.use("/ProductImages", express.static(imagesDir));
 
@@ -41,11 +42,6 @@ app.use("/api/products", productRoutes);
 app.use("/api/product", require("./routes/uploadProducts"));
 
 app.use("/", uploadProducts);
-
-app.use(cors());
-app.use(express.json());
-
-app.use("/images", express.static(path.join(__dirname, "images")));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -56,12 +52,18 @@ app.use((req, res, next) => {
 app.use("/api/upload", require("./routes/upload"));
 app.use("/opticiens", require("./routes/opticiens"));
 
+
+//
 //google route
 app.use('/auth', require('./routes/googleAuth'));
 app.use('/auth', require('./routes/facebookAuth'));
-
-dotenv.config(); 
+//
+dotenv.config(); // Load environment variables// Remplacez avec votre ID client Google
 process.e
+
+app.use('/api/wishlist', require('./routes/wishlist'));
+
+
 
 // Import the User model
 const User = require('./models/User');
@@ -103,6 +105,8 @@ app.post('/api/refresh-token', async (req, res) => {
   }
 });
 
+
+
 // MongoDB connection
   mongoose.connect('mongodb://localhost:27017/Opti_app')
   .then(async () => {
@@ -135,7 +139,7 @@ app.post('/api/refresh-token', async (req, res) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://192.168.1.22:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 
@@ -325,7 +329,7 @@ app.post('/api/login', async (req, res) => {
     
 
     // Save refresh token to user and persist changes
-    user.refreshTokens.push(refreshToken);
+   // user.refreshTokens.push(refreshToken);
     await user.save(); // Persist the refresh token
 
     // Return both tokens to the client
@@ -485,7 +489,6 @@ app.get('/auth/facebook/callback',
     res.redirect(`${process.env.FRONTEND_URL || 'http://192.168.1.189:3000'}?token=${token}`);
   }
 );
-
 // User Management Routes
 app.get('/api/users/:email', async (req, res) => {
   try {
@@ -683,12 +686,4 @@ app.get('/auth/facebook/error', (req, res) => {
   res.send('Error logging in via Facebook');
 });
 
-// Add the router to your app
-
-
-// Your server setup (e.g., listening on port 3000)
-
-
-
-// Start Server
 

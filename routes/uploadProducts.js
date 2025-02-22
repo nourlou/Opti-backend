@@ -2,28 +2,28 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
-const Product = require('../models/Product'); // Assuming the Product model
-
-// Créer le dossier "ProductImages" s'il n'existe pas
+const Product = require('../models/Product'); // Assuming the Product model exists
 const fs = require("fs");
+
+// Create the "ProductImages" directory if it doesn't exist
 const imagesDir = path.join(__dirname, "../ProductImages");
 if (!fs.existsSync(imagesDir)) {
   fs.mkdirSync(imagesDir, { recursive: true });
 }
 
-// Configuration de multer
+// Multer configuration
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, "../ProductImages");
-    cb(null, uploadPath);
+    cb(null, imagesDir); // Save files to the "ProductImages" directory
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + path.extname(file.originalname));
+    cb(null, Date.now() + '-' + path.extname(file.originalname)); // Unique filename
   }
 });
 
 const upload = multer({ storage: storage });
 
+// Route to upload an image
 router.post("/upload", upload.single("image"), (req, res) => {
   console.log("Requête d'upload reçue");
   try {
@@ -31,11 +31,13 @@ router.post("/upload", upload.single("image"), (req, res) => {
       console.log("Aucun fichier reçu");
       return res.status(400).json({ message: "Aucune image téléchargée" });
     }
-    
+
     console.log("Fichier reçu:", req.file);
+
+    // Generate the full URL for the uploaded image
     const imageUrl = `${req.protocol}://${req.get("host")}/ProductImages/${req.file.filename}`;
     console.log("URL générée:", imageUrl);
-    
+
     res.status(200).json({
       message: "Image téléchargée avec succès",
       imageUrl: imageUrl,
@@ -46,18 +48,18 @@ router.post("/upload", upload.single("image"), (req, res) => {
   }
 });
 
-// Route pour mettre à jour l'image d'un produit (en utilisant email ou un autre identifiant)
+// Route to update a product's image (using email or another identifier)
 router.put("/:email/image", async (req, res) => {
   try {
     const { email } = req.params;
     const { imageUrl } = req.body;
     console.log(`Mise à jour de l'image du produit pour l'email: ${email}, imageUrl: ${imageUrl}`);
 
-    // Mettre à jour l'URL de l'image du produit (en supposant que vous utilisez un modèle Product)
+    // Update the product's image URL (assuming you're using a Product model)
     const product = await Product.findOneAndUpdate(
-      { email: email }, // Critère de recherche (peut être modifié en fonction de votre modèle)
+      { email: email }, // Search criteria (can be modified based on your model)
       { imageUrl: imageUrl },
-      { new: true } // Retourner le produit mis à jour
+      { new: true } // Return the updated product
     );
 
     if (!product) {

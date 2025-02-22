@@ -23,7 +23,8 @@ router.post('/add', async (req, res) => {
     prix: req.body.prix,
     quantite_stock: req.body.quantite_stock,
     image: req.body.image,
-    type_verre: req.body.type_verre
+    type_verre: req.body.type_verre,
+    opticienId: req.body.opticienId,
   });
 
   try {
