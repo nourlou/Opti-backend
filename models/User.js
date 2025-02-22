@@ -1,16 +1,15 @@
 const mongoose = require('mongoose');
 
-const userSchema = new mongoose.Schema({
+const UserSchema = new mongoose.Schema({
   nom: { type: String, required: true },
   prenom: { type: String, required: true },
   email: { type: String, required: true, unique: true },
-  date: { type: String, required: true },
+  date: { type: Date, required: true },
   password: { type: String, required: true },
   phone: { type: String, required: true },
   region: { type: String, required: true },
   genre: { type: String, required: true },
-  imageUrl: { type: String, required: false }
-
+  refreshToken: { type: String } // Add this field to store the refresh token
 });
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('User', UserSchema);
