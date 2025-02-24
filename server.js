@@ -9,9 +9,6 @@ const session = require('express-session');
 const fs = require('fs');
 const multer = require('multer');
 
-
-const passport = require('passport');
-const FacebookStrategy = require('passport-facebook').Strategy;
 const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
@@ -20,6 +17,8 @@ app.use(express.json());
 //upload image
 const path=require("path");
 app.use("/images", express.static(path.join(__dirname, "images")));
+
+app.use('/api/cart',require("./routes/cart_item"));
 
 
 // Configuration du dossier des images
@@ -48,10 +47,12 @@ app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
+
 // Upload route
 app.use("/api/upload", require("./routes/upload"));
 app.use("/opticiens", require("./routes/opticiens"));
 
+app.use('/api/wishlist', require('./routes/wishlist'));
 
 //
 //google route
@@ -61,7 +62,6 @@ app.use('/auth', require('./routes/facebookAuth'));
 dotenv.config(); // Load environment variables// Remplacez avec votre ID client Google
 process.e
 
-app.use('/api/wishlist', require('./routes/wishlist'));
 
 
 
@@ -139,7 +139,7 @@ app.post('/api/refresh-token', async (req, res) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://192.168.0.104:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 
@@ -158,41 +158,6 @@ app.use(cors({
   resave: false, 
   saveUninitialized: true 
 }));
-app.use(passport.initialize());
-app.use(passport.session());
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-  try {
-    const user = await User.findById(id);
-    done(null, user);
-  } catch (err) {
-    done(err);
-  }
-});
-
-// User model
-
-const userSchema = new mongoose.Schema({
-  nom: { type: String, required: true },
-  prenom: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  date: { type: String, required: true },
-  password: { type: String, required: true },
-  phone: { type: String, required: true },
-  region: { type: String, required: true },
-  genre: { type: String, required: true },
-  imageUrl: { type: String, required: false },
-  refreshTokens: [String],
-}, { collection: 'users' }); // Explicitly set collection name
-
-// Log the schema definition
-console.log('User Schema Definition:', userSchema.obj);
-
-
-module.exports = User;
 
 
 
@@ -233,27 +198,7 @@ transporter.verify((error, success) => {
     console.log('Transporter is ready to send emails');
   }
 });
-app.put("/users/:userId/image", async (req, res) => {
-  try {
-    const userId = req.params.userId;
-    const { imageUrl } = req.body;
 
-    // Update the user's imageUrl in the database
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { imageUrl: imageUrl },
-      { new: true } // Return the updated user
-    );
-
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json(updatedUser);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 
 
 // Registration Route
@@ -443,52 +388,6 @@ app.post('/api/reset-password', async (req, res) => {
   }
 });
 
-// Facebook Authentication Setup
-passport.use(new FacebookStrategy({
-    clientID: process.env.FACEBOOK_CLIENT_ID || '1304521740805476',
-    clientSecret: process.env.FACEBOOK_CLIENT_SECRET || '0f14d7edea3140df0913c5c7ce734710',
-    callbackURL: process.env.FACEBOOK_CALLBACK_URL || 'http://192.168.1.189:3000/auth/facebook/callback',
-  },
-  async (accessToken, refreshToken, profile, cb) => {
-    try {
-      let user = await User.findOne({
-        email: profile.emails[0].value
-      });
-
-      if (!user) {
-        user = new User({
-          nom: profile.name.givenName,
-          prenom: profile.name.familyName,
-          email: profile.emails[0].value,
-          date: new Date().toISOString(),
-          password: 'FACEBOOK_AUTH',
-          phone: 'N/A',
-          region: 'N/A',
-          genre: 'N/A',
-        });
-        await user.save();
-      }
-      return cb(null, user);
-    } catch (error) {
-      return cb(error, null);
-    }
-  }
-));
-
-// Facebook Authentication Routes
-app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-
-app.get('/auth/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: '/login' }),
-  (req, res) => {
-    const token = jwt.sign(
-      { id: req.user._id, email: req.user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-    res.redirect(`${process.env.FRONTEND_URL || 'http://192.168.1.189:3000'}?token=${token}`);
-  }
-);
 // User Management Routes
 app.get('/api/users/:email', async (req, res) => {
   try {
@@ -663,27 +562,5 @@ app.use((err, req, res, next) => {
 });
 
 
-
-// Add route to handle Facebook authentication via passport
-app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-
-// Handle Facebook callback
-app.get(
-  '/auth/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: '/auth/facebook/error' }),
-  (req, res) => {
-    // Successful login
-    res.redirect('/auth/facebook/success');
-  }
-);
-
-// Handle success and failure routes
-app.get('/auth/facebook/success', (req, res) => {
-  res.send('Facebook login successful');
-});
-
-app.get('/auth/facebook/error', (req, res) => {
-  res.send('Error logging in via Facebook');
-});
 
 
