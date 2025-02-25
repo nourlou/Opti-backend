@@ -26,8 +26,8 @@ router.post('/', async (req, res) => {
 
     if (cartItem) {
       // Update the existing item
-      cartItem.quantity = quantity;
-      cartItem.totalPrice = totalPrice;
+      cartItem.quantity += quantity; // Increment the quantity
+      cartItem.totalPrice += totalPrice; // Recalculate the total price
       cartItem.updatedAt = new Date();
       await cartItem.save();
     } else {
@@ -51,29 +51,36 @@ router.post('/', async (req, res) => {
     res.status(400).json({ message: error.message });
   }
 });
-
+// Get cart items for a user
+// Get cart items for a user
+// Get cart items for a user
 // Get cart items for a user
 router.get('/', async (req, res) => {
   try {
     const { userId } = req.query;
-    
+
+    // Log the incoming request
+    console.log('Received request to get cart items for userId:', userId);
+
     if (!userId) {
+      console.warn('userId is required');
       return res.status(400).json({ message: 'userId is required' });
     }
 
     const cart = await Cart.findOne({ userId }).populate('items');
-    
+
     if (!cart) {
+      console.log(`No cart found for userId: ${userId}`);
       return res.json({ items: [] });
     }
 
+    console.log(`Cart found for userId: ${userId}, items:`, cart.items);
     res.json({ items: cart.items });
   } catch (error) {
     console.error('Error while retrieving cart items:', error);
     res.status(500).json({ message: error.message });
   }
 });
-
 // Update cart item
 router.put('/:id', async (req, res) => {
   try {
@@ -101,7 +108,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Delete cart item
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -125,36 +131,16 @@ router.delete('/:id', async (req, res) => {
     // Delete the cart item
     await cartItem.deleteOne();
 
-    res.json({ message: 'Item removed from cart' });
+    // Return 204 No Content
+    res.status(204).end();
   } catch (error) {
     console.error('Error while deleting cart item:', error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// Clear cart
-router.delete('/cart/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
 
-    const cart = await Cart.findOne({ userId });
-    if (!cart) {
-      return res.status(404).json({ message: 'Cart not found' });
-    }
 
-    // Delete all cart items
-    await CartItem.deleteMany({ _id: { $in: cart.items } });
-
-    // Clear the cart items array
-    cart.items = [];
-    await cart.save();
-
-    res.json({ message: 'Cart cleared successfully' });
-  } catch (error) {
-    console.error('Error while clearing cart:', error);
-    res.status(500).json({ message: error.message });
-  }
-});
 
 module.exports = router;
 
