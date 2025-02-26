@@ -8,7 +8,7 @@ const axios = require('axios');
 const session = require('express-session');
 const fs = require('fs');
 const multer = require('multer');
-
+const userRoutes = require('./routes/user');
 const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
@@ -20,6 +20,7 @@ app.use("/images", express.static(path.join(__dirname, "images")));
 
 app.use('/api/cart',require("./routes/cart_item"));
 
+app.use('/api', userRoutes);
 
 // Configuration du dossier des images
 const imagesDir = path.join(__dirname, "ProductImages");
@@ -139,7 +140,7 @@ app.post('/api/refresh-token', async (req, res) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://192.168.0.104:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 

@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
   phone: { type: String, required: true },
   region: { type: String, required: true },
   genre: { type: String, required: true },
+  imageUrl: { type: String},
   refreshToken: { type: String } // Add this field to store the refresh token
 });
 
