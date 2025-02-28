@@ -12,6 +12,8 @@ const userRoutes = require('./routes/user');
 const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+
+const orderRoutes = require('./routes/orderRoutes');
 app.use(cors());
 app.use(express.json());
 //upload image
@@ -22,6 +24,7 @@ app.use('/api/cart',require("./routes/cart_item"));
 
 app.use('/api', userRoutes);
 
+app.use('/orders', orderRoutes);
 // Configuration du dossier des images
 const imagesDir = path.join(__dirname, "ProductImages");
 if (!fs.existsSync(imagesDir)) {
@@ -42,7 +45,9 @@ app.use("/api/products", productRoutes);
 app.use("/api/product", require("./routes/uploadProducts"));
 
 app.use("/", uploadProducts);
-app.use('/', forgotPasswordRoutes);
+// Use the forgot password routes
+app.use('/api', forgotPasswordRoutes);
+
 // Logging middleware
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -60,11 +65,7 @@ app.use('/api/wishlist', require('./routes/wishlist'));
 app.use('/auth', require('./routes/googleAuth'));
 app.use('/auth', require('./routes/facebookAuth'));
 //
-dotenv.config(); // Load environment variables// Remplacez avec votre ID client Google
-process.e
-
-
-
+dotenv.config(); // Load environment variables
 
 // Import the User model
 const User = require('./models/User');
@@ -109,7 +110,7 @@ app.post('/api/refresh-token', async (req, res) => {
 
 
 // MongoDB connection
-  mongoose.connect('mongodb://localhost:27017/Opti_app')
+mongoose.connect('mongodb://localhost:27017/Opti_app')
   .then(async () => {
     console.log('✅ MongoDB connected successfully');
     
@@ -128,15 +129,15 @@ app.post('/api/refresh-token', async (req, res) => {
       sampleUser ? Object.keys(sampleUser) : 'No users found'
     );
   });
-  mongoose.connection.on('connected', () => {
-    console.log('Mongoose connected to:', mongoose.connection.host);
-    console.log('Database:', mongoose.connection.name);
-    console.log('Collection:', User.collection.name);
-  });
-  
-  mongoose.connection.on('error', (err) => {
-    console.error('Mongoose connection error:', err);
-  });
+mongoose.connection.on('connected', () => {
+  console.log('Mongoose connected to:', mongoose.connection.host);
+  console.log('Database:', mongoose.connection.name);
+  console.log('Collection:', User.collection.name);
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('Mongoose connection error:', err);
+});
 
 // CORS Configuration
 app.use(cors({
@@ -181,9 +182,7 @@ app.get('/api/verify-token', async (req, res) => {
 });
 
 
-
-
-// Email configuration
+// Email configuration for general use (not related to password reset)
 const transporter = nodemailer.createTransport({
   service: 'gmail', // Or your SMTP service
   auth: {
@@ -291,22 +290,6 @@ const PORT = 3000;
 app.listen(3000, '0.0.0.0', () => {
   console.log('Server running on http://0.0.0.0:3000');
 });
-
-
-// Temporary storage for reset codes
-const resetCodes = new Map(); // { email: { code, expiresAt } }
-
-// Email setup
-
-transporter.verify((error, success) => {
-  if (error) {
-    console.log('Error in transporter configuration:', error);
-  } else {
-    console.log('Transporter is ready to send emails');
-  }
-});
-
-// Forgot Password Route - Send Code
 
 
 // User Management Routes
@@ -481,7 +464,3 @@ app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
-
-
-
-
