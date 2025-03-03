@@ -141,10 +141,9 @@ mongoose.connection.on('error', (err) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],}
-));
-
+  origin: 'http://localhost:3000',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+}));
 
 app.use(session({
   secret: 'cfghjklmghjk', // Replace with a secure secret key
@@ -288,7 +287,7 @@ app.post('/api/login', async (req, res) => {
 const PORT = 3000;
 // Start the server
 app.listen(3000, '0.0.0.0', () => {
-  console.log('Server running on http://0.0.0.0:3000');
+  console.log('Server running on http://localhost:3000');
 });
 
 

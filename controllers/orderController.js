@@ -3,17 +3,27 @@ const Order = require('../models/orderModel');
 // Créer une nouvelle commande
 exports.createOrder = async (req, res) => {
   try {
+    console.log('Creating order with data:', JSON.stringify(req.body));
+    
     const orderData = {
       ...req.body,
       createdAt: new Date(),
       updatedAt: new Date()
     };
     
+    console.log('Processing order data:', JSON.stringify(orderData));
+    
     const newOrder = await Order.create(orderData);
+    console.log('Order created in database with ID:', newOrder._id);
+    
+    // Double-check the order was saved by retrieving it
+    const savedOrder = await Order.findById(newOrder._id);
+    console.log('Order retrieved from database:', savedOrder ? 'SUCCESS' : 'FAILED');
     
     res.status(201).json(newOrder);
   } catch (error) {
-    res.status(400).json({ 
+    console.error('Error creating order:', error);
+    res.status(400).json({
       success: false,
       message: 'Erreur lors de la création de la commande',
       error: error.message
@@ -105,37 +115,39 @@ exports.updateOrderStatus = async (req, res) => {
 exports.cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    
+    console.log(`Deleting order with ID: ${id}`);
+
+    // Find the order
     const order = await Order.findById(id);
-    
     if (!order) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: 'Commande non trouvée'
+        message: 'Commande non trouvée',
       });
     }
-    
-    // Vérifier si la commande peut être annulée (par exemple, pas déjà en cours de livraison)
+
+    // Check if the order can be canceled
     if (['En livraison', 'Livrée'].includes(order.status)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Impossible d\'annuler une commande qui est déjà en livraison ou livrée'
+        message: 'Impossible d\'annuler une commande qui est déjà en livraison ou livrée',
       });
     }
-    
-    order.status = 'Annulée';
-    order.updatedAt = new Date();
-    await order.save();
-    
+
+    // Delete the order
+    await Order.findByIdAndDelete(id);
+    console.log('Order deleted successfully');
+
     res.status(200).json({
       success: true,
-      message: 'Commande annulée avec succès'
+      message: 'Commande supprimée avec succès',
     });
   } catch (error) {
-    res.status(400).json({ 
+    console.error('Error deleting order:', error);
+    res.status(500).json({
       success: false,
-      message: 'Erreur lors de l\'annulation de la commande',
-      error: error.message
+      message: 'Erreur lors de la suppression de la commande',
+      error: error.message,
     });
   }
 };

@@ -7,9 +7,11 @@ router.get('/', async (req, res) => {
     console.log('[Optician Route] Fetching opticians...');
     const opticiens = await Opticien.find();
     
+    console.log(`[Optician Route] Retrieved from DB:`, opticiens);
+
     if (!opticiens || opticiens.length === 0) {
       console.log('[Optician Route] No opticians found');
-      return res.status(200).json([]); // Return empty array instead of error
+      return res.status(200).json([]); // Retourne une liste vide
     }
     
     console.log(`[Optician Route] Successfully fetched ${opticiens.length} opticians`);
@@ -22,5 +24,7 @@ router.get('/', async (req, res) => {
     });
   }
 });
+
+
 
 module.exports = router;
