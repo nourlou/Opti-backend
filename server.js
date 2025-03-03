@@ -8,10 +8,12 @@ const axios = require('axios');
 const session = require('express-session');
 const fs = require('fs');
 const multer = require('multer');
-
+const userRoutes = require('./routes/user');
 const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+
+const orderRoutes = require('./routes/orderRoutes');
 app.use(cors());
 app.use(express.json());
 //upload image
@@ -20,7 +22,9 @@ app.use("/images", express.static(path.join(__dirname, "images")));
 
 app.use('/api/cart',require("./routes/cart_item"));
 
+app.use('/api', userRoutes);
 
+app.use('/orders', orderRoutes);
 // Configuration du dossier des images
 const imagesDir = path.join(__dirname, "ProductImages");
 if (!fs.existsSync(imagesDir)) {
@@ -41,7 +45,9 @@ app.use("/api/products", productRoutes);
 app.use("/api/product", require("./routes/uploadProducts"));
 
 app.use("/", uploadProducts);
-app.use('/', forgotPasswordRoutes);
+// Use the forgot password routes
+app.use('/api', forgotPasswordRoutes);
+
 // Logging middleware
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -66,11 +72,7 @@ app.use('/api', require('./routes/reviewRoutes'));
 
 
 //
-dotenv.config(); // Load environment variables// Remplacez avec votre ID client Google
-process.e
-
-
-
+dotenv.config(); // Load environment variables
 
 // Import the User model
 const User = require('./models/User');
@@ -81,7 +83,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key'
 
 
 // MongoDB connection
-  mongoose.connect('mongodb://localhost:27017/Opti_app')
+mongoose.connect('mongodb://localhost:27017/Opti_app')
   .then(async () => {
     console.log('✅ MongoDB connected successfully');
     
@@ -100,15 +102,15 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key'
       sampleUser ? Object.keys(sampleUser) : 'No users found'
     );
   });
-  mongoose.connection.on('connected', () => {
-    console.log('Mongoose connected to:', mongoose.connection.host);
-    console.log('Database:', mongoose.connection.name);
-    console.log('Collection:', User.collection.name);
-  });
-  
-  mongoose.connection.on('error', (err) => {
-    console.error('Mongoose connection error:', err);
-  });
+mongoose.connection.on('connected', () => {
+  console.log('Mongoose connected to:', mongoose.connection.host);
+  console.log('Database:', mongoose.connection.name);
+  console.log('Collection:', User.collection.name);
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('Mongoose connection error:', err);
+});
 
 // CORS Configuration
 app.use(cors({
@@ -134,6 +136,6 @@ app.use(cors({
 const PORT = 3000;
 // Start the server
 app.listen(3000, '0.0.0.0', () => {
-  console.log('Server running on http://0.0.0.0:3000');
+  console.log('Server running on http://localhost:3000');
 });
 
