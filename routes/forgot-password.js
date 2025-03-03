@@ -1,43 +1,22 @@
 const express = require('express');
-const User = require('../models/User');
+const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
+const User = require('../models/User'); // Assurez-vous que le chemin est correct
 const router = express.Router();
 
+const resetCodes = new Map(); // Stocke temporairement les codes de réinitialisation
 
-
-// Email configuration
+// Configuration du transporteur email
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // Or your SMTP service
+  service: 'gmail',
   auth: {
-    user: 'yosrbencheikh28@gmail.com',
-    pass: 'xqzc yhwk kdvi pmdy',
+    user: process.env.EMAIL_USER || 'yosrbencheikh28@gmail.com',
+    pass: process.env.EMAIL_PASS, // Assurez-vous que le mot de passe est stocké dans les variables d'environnement
   },
-  
 });
 
-transporter.verify((error, success) => {
-  if (error) {
-    console.log('Error in transporter configuration:', error);
-  } else {
-    console.log('Transporter is ready to send emails');
-  }
-});
-
-const resetCodes = new Map();
-
-// Email setup
-
-transporter.verify((error, success) => {
-    if (error) {
-      console.log('Error in transporter configuration:', error);
-    } else {
-      console.log('Transporter is ready to send emails');
-    }
-  });
-  
-
-// Forgot Password Route - Send Code
-router.post('/api/forgot-password', async (req, res) => {
+// 📌 Route : Demande de réinitialisation du mot de passe
+router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   const user = await User.findOne({ email });
 
@@ -46,7 +25,7 @@ router.post('/api/forgot-password', async (req, res) => {
   }
 
   const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+  const expiresAt = Date.now() + 5 * 60 * 1000; // Expire après 5 minutes
   resetCodes.set(email, { code: resetCode, expiresAt });
 
   const mailOptions = {
@@ -54,29 +33,19 @@ router.post('/api/forgot-password', async (req, res) => {
     to: email,
     subject: 'Password Reset Code',
     html: `
-      <!DOCTYPE html>
-      <html lang="en">
+      <html>
       <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          /* Your email styles here */
-        </style>
+        <title>Reset Password</title>
       </head>
       <body>
-        <div class="email-container">
-          <div class="email-header">
-            <h1>Password Reset Request</h1>
-          </div>
-          <div class="email-body">
-            <p>Dear ${email},</p>
-            <p>Your verification code is: ${resetCode}</p>
-            <p>This code will expire in 5 minutes.</p>
-          </div>
-        </div>
+        <h1>Password Reset Request</h1>
+        <p>Dear ${email},</p>
+        <p>Your verification code is: <strong>${resetCode}</strong></p>
+        <p>This code will expire in 5 minutes.</p>
       </body>
       </html>
-    `
+    `,
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
@@ -88,8 +57,8 @@ router.post('/api/forgot-password', async (req, res) => {
   });
 });
 
-// Verify Code Route
-router.post('/api/verify-code', (req, res) => {
+// 📌 Route : Vérifier le code de réinitialisation
+router.post('/verify-code', (req, res) => {
   const { email, code } = req.body;
   const storedData = resetCodes.get(email);
 
@@ -100,8 +69,8 @@ router.post('/api/verify-code', (req, res) => {
   res.status(200).send({ message: 'Code verified' });
 });
 
-// Reset Password Route
-router.post('/api/reset-password', async (req, res) => {
+// 📌 Route : Réinitialiser le mot de passe
+router.post('/reset-password', async (req, res) => {
   const { email, code, newPassword } = req.body;
   const storedData = resetCodes.get(email);
 

@@ -156,5 +156,40 @@ router.get('/api/users/:email', async (req, res) => {
     return res.status(500).send({ message: 'Error retrieving user' });
   }
 });
+// Get user by ID
+router.get('/api/users/:userId', async (req, res) => {
+  try {
+    const userId = req.params.userId;
+
+    // Validate the userId
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    // Find the user by ID
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Return the user details (excluding sensitive information like password)
+    const userDetails = {
+      _id: user._id,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      date: user.date,
+      phone: user.phone,
+      region: user.region,
+      genre: user.genre,
+    };
+
+    return res.status(200).json(userDetails);
+  } catch (err) {
+    console.error('Error fetching user by ID:', err);
+    return res.status(500).json({ message: 'Error fetching user', error: err.message });
+  }
+});
 
 module.exports = router;

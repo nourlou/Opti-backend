@@ -3,9 +3,37 @@ const router = express.Router();
 const Product = require('../models/Product');
 
 // Obtenir tous les produits
+// routes/products.js
 router.get('/', async (req, res) => {
   try {
-    const products = await Product.find();
+    const products = await Product.aggregate([
+      {
+        $lookup: {
+          from: 'reviews', // Join with the reviews collection
+          localField: '_id', // Product ID
+          foreignField: 'productId', // Review's productId field
+          as: 'reviews' // Store joined reviews in this field
+        }
+      },
+      {
+        $addFields: {
+          // Calculate average rating dynamically
+          averageRating: {
+            $ifNull: [{ $avg: '$reviews.rating' }, 0] // Default to 0 if no reviews
+          },
+          // Calculate total reviews dynamically
+          totalReviews: {
+            $size: '$reviews' // Count the number of reviews
+          }
+        }
+      },
+      {
+        $project: {
+          reviews: 0 // Exclude the reviews array from the final output
+        }
+      }
+    ]);
+
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -23,7 +51,8 @@ router.post('/add', async (req, res) => {
     prix: req.body.prix,
     quantite_stock: req.body.quantite_stock,
     image: req.body.image,
-    type_verre: req.body.type_verre
+    type_verre: req.body.type_verre,
+    opticienId: req.body.opticienId,
   });
 
   try {

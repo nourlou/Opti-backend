@@ -30,7 +30,7 @@ if (!fs.existsSync(imagesDir)) {
 const upload = multer({ dest: 'ProductImages/' }); // Ajoutez cette ligne
 const uploadProducts = require("./routes/uploadProducts");
 const productRoutes = require('./routes/products');
-
+const forgotPasswordRoutes = require('./routes/forgot-password');
 app.use("/ProductImages", express.static(imagesDir));
 app.use("/upload", uploadProducts);
 
@@ -41,7 +41,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/product", require("./routes/uploadProducts"));
 
 app.use("/", uploadProducts);
-
+app.use('/', forgotPasswordRoutes);
 // Logging middleware
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
@@ -56,11 +56,15 @@ app.use("/", require("./routes/login"));
 app.use("/", require("./routes/resetPassword"));
 app.use("/", require("./routes/updateUser"));
 
+app.use('/api/wishlist', require('./routes/wishlist'));
 
 //
 //google route
 app.use('/auth', require('./routes/googleAuth'));
 app.use('/auth', require('./routes/facebookAuth'));
+app.use('/api', require('./routes/reviewRoutes'));
+
+
 //
 dotenv.config(); // Load environment variables// Remplacez avec votre ID client Google
 process.e
@@ -108,10 +112,9 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key'
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://192.168.142.9:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://192.168.1.22:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
-
 
 app.use(session({
   secret: 'cfghjklmghjk', // Replace with a secure secret key
@@ -127,8 +130,6 @@ app.use(cors({
   resave: false, 
   saveUninitialized: true 
 }));
-
-
 
 const PORT = 3000;
 // Start the server
