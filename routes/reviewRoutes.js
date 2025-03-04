@@ -6,7 +6,7 @@ const router = express.Router();
 
 // Google Perspective API integration
 async function checkToxicity(text) {
-  const API_KEY ='AIzaSyCsTA1cIpfqRVLB0wM8aKKDSqES32kEqSI'; // Replace with your actual API key
+  const API_KEY ='AIzaSyBRKWdoV1GUDqQcBzeLX-gP85ly6r13wZ4'; // Replace with your actual API key
   const PERSPECTIVE_API_URL = `https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key=${API_KEY}`;
 
   try {

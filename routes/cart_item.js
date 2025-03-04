@@ -138,6 +138,38 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+// Clear all cart items for a user
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: 'Invalid item ID' });
+    }
+
+    // Delete the cart item
+    const cartItem = await CartItem.findById(id);
+    if (!cartItem) {
+      // If item already doesn't exist, consider it a success
+      return res.status(204).end();
+    }
+
+    // Remove the item from the cart
+    await Cart.updateOne(
+      { userId: cartItem.userId },
+      { $pull: { items: id } }
+    );
+
+    // Delete the cart item
+    await cartItem.deleteOne();
+
+    // Return 204 No Content
+    res.status(204).end();
+  } catch (error) {
+    console.error('Error while deleting cart item:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
 
 
 
