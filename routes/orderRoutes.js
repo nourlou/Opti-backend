@@ -17,4 +17,5 @@ router.patch('/:id/status', orderController.updateOrderStatus);
 // Route pour annuler une commande
 router.delete('/:id', orderController.cancelOrder);
 
+router.get('/', orderController.getAllOrders);
 module.exports = router;

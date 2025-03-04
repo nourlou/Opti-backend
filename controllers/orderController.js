@@ -47,7 +47,19 @@ exports.getUserOrders = async (req, res) => {
     });
   }
 };
-
+// Récupérer toutes les commandes
+exports.getAllOrders = async (req, res) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 }); // Fetch all orders and sort by creation date
+    res.status(200).json(orders);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des commandes',
+      error: error.message,
+    });
+  }
+};
 // Récupérer une commande par son ID
 exports.getOrderById = async (req, res) => {
   try {

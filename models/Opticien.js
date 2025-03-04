@@ -1,11 +1,11 @@
 const mongoose = require('mongoose');
 
 const opticienSchema = new mongoose.Schema({
-  name: {
+  nom: {
     type: String,
     required: true
   },
-  address: {
+  adresse: {
     type: String,
     required: true
   },
