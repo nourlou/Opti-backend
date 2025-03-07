@@ -1,80 +1,65 @@
+// uploadProducts.js - Fichier de route pour le téléchargement d'images
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
-const Product = require('../models/Product'); // Assuming the Product model exists
 const fs = require("fs");
 
-// Create the "ProductImages" directory if it doesn't exist
+// Créer le répertoire des images
 const imagesDir = path.join(__dirname, "../ProductImages");
 if (!fs.existsSync(imagesDir)) {
   fs.mkdirSync(imagesDir, { recursive: true });
 }
 
-// Multer configuration
+// Configuration multer
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, imagesDir); // Save files to the "ProductImages" directory
+    cb(null, imagesDir);
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + path.extname(file.originalname)); // Unique filename
+    cb(null, Date.now() + '-' + path.extname(file.originalname));
   }
 });
 
-const upload = multer({ storage: storage });
-
-// Route to upload an image
-router.post("/upload", upload.single("image"), (req, res) => {
-  console.log("Requête d'upload reçue");
-  try {
-    if (!req.file) {
-      console.log("Aucun fichier reçu");
-      return res.status(400).json({ message: "Aucune image téléchargée" });
+const upload = multer({
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    console.log('File mimetype:', file.mimetype);
+    
+    const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
     }
+  },
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+});
 
-    console.log("Fichier reçu:", req.file);
-
-    // Generate the full URL for the uploaded image
+// IMPORTANT: définir explicitement la route pour correspondre au client
+router.post("/", upload.single("image"), async (req, res) => {
+  try {
+    console.log('Upload request received:', req.body);
+    console.log('File:', req.file);
+    
+    if (!req.file) {
+      console.log('No image uploaded');
+      return res.status(400).json({ message: "No image uploaded" });
+    }
+    
+    // Générer l'URL de l'image
     const imageUrl = `${req.protocol}://${req.get("host")}/ProductImages/${req.file.filename}`;
-    console.log("URL générée:", imageUrl);
-
+    console.log('Image uploaded successfully. URL:', imageUrl);
+    
     res.status(200).json({
-      message: "Image téléchargée avec succès",
+      message: "Image uploaded successfully",
       imageUrl: imageUrl,
     });
   } catch (error) {
-    console.error('Erreur lors du téléchargement:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Route to update a product's image (using email or another identifier)
-router.put("/:email/image", async (req, res) => {
-  try {
-    const { email } = req.params;
-    const { imageUrl } = req.body;
-    console.log(`Mise à jour de l'image du produit pour l'email: ${email}, imageUrl: ${imageUrl}`);
-
-    // Update the product's image URL (assuming you're using a Product model)
-    const product = await Product.findOneAndUpdate(
-      { email: email }, // Search criteria (can be modified based on your model)
-      { imageUrl: imageUrl },
-      { new: true } // Return the updated product
-    );
-
-    if (!product) {
-      console.log('Produit non trouvé');
-      return res.status(404).json({ message: "Produit non trouvé" });
-    }
-
-    console.log('Image du produit mise à jour avec succès:', product);
-    res.status(200).json({
-      message: "Image du produit mise à jour avec succès",
-      product: product,
-    });
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour de l\'image du produit:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Error uploading image:', error);
+    res.status(500).json({ error: error.message || "Internal server error" });
   }
 });
 

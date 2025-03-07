@@ -13,6 +13,8 @@ const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 
+const opticianRoutes = require('./routes/opticianRoutes');
+
 const orderRoutes = require('./routes/orderRoutes');
 app.use(cors());
 app.use(express.json());
@@ -23,6 +25,8 @@ app.use("/images", express.static(path.join(__dirname, "images")));
 app.use('/api/cart',require("./routes/cart_item"));
 
 app.use('/api', userRoutes);
+
+app.use('/api', opticianRoutes);
 
 app.use('/orders', orderRoutes);
 // Configuration du dossier des images
@@ -36,15 +40,14 @@ const uploadProducts = require("./routes/uploadProducts");
 const productRoutes = require('./routes/products');
 const forgotPasswordRoutes = require('./routes/forgot-password');
 app.use("/ProductImages", express.static(imagesDir));
-app.use("/upload", uploadProducts);
-
+app.use("/api/products/upload", uploadProducts);
 app.use("/ProductImages", express.static(imagesDir));
+app.use("/upload", uploadProducts);
 
 app.use("/api/products", productRoutes);
 
-app.use("/api/product", require("./routes/uploadProducts"));
 
-app.use("/", uploadProducts);
+
 // Use the forgot password routes
 app.use('/api', forgotPasswordRoutes);
 
@@ -56,7 +59,7 @@ app.use((req, res, next) => {
 
 // Upload route
 app.use("/api/upload", require("./routes/upload"));
-app.use("/opticiens", require("./routes/opticiens"));
+app.use("/opticiens", require("./routes/boutiques"));
 
 app.use("/", require("./routes/login"));
 app.use("/", require("./routes/resetPassword"));

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Opticien = require('../models/Opticien');
+const Opticien = require('../models/Boutique');
 
 // GET all opticians
 router.get('/', async (req, res) => {

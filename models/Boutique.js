@@ -27,4 +27,4 @@ const opticienSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Opticien', opticienSchema);
+module.exports = mongoose.model('Opticien', opticienSchema, 'Boutique');
