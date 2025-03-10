@@ -1,4 +1,6 @@
 const Order = require('../models/orderModel');
+const axios = require('axios');
+const User = require('../models/User');
 
 // Créer une nouvelle commande
 exports.createOrder = async (req, res) => {
@@ -47,6 +49,7 @@ exports.getUserOrders = async (req, res) => {
     });
   }
 };
+
 // Récupérer toutes les commandes
 exports.getAllOrders = async (req, res) => {
   try {
@@ -60,6 +63,7 @@ exports.getAllOrders = async (req, res) => {
     });
   }
 };
+
 // Récupérer une commande par son ID
 exports.getOrderById = async (req, res) => {
   try {
@@ -84,6 +88,46 @@ exports.getOrderById = async (req, res) => {
   }
 };
 
+const sendOneSignalNotification = async (playerId, message, orderId, newStatus) => {
+  const oneSignalAppId = 'e2715d8a-cf44-4523-8078-dbe2285a792b';
+  const oneSignalRestApiKey = 'os_v2_app_4jyv3cwpircshady3prcqwtzfp6xxy3mxriuv4f2anhplthp3giand35gcr3inxjw7dxfz2gtikbzsunfp4m7ljiluajudp5fh5hbaa';
+  const notificationTitle = `🚀 Commande #${orderId.slice(-6)}`;
+  const notificationMessage = `Statut mis à jour: ${newStatus} ➡️ ${message}`;
+  try {
+    const response = await axios.post(
+      'https://onesignal.com/api/v1/notifications',
+      {
+        app_id: oneSignalAppId,
+        include_player_ids: [playerId],
+        contents: { en: notificationMessage }, // Notification message
+        headings: { en: notificationTitle }, // Notification title
+        data: { orderId, newStatus },
+        buttons: [
+          { id: "view_order", text: "Voir la commande", icon: "ic_menu_view" },
+          { id: "cancel", text: "Annuler", icon: "ic_menu_cancel" }
+        ],
+        // Add a large icon or image
+        large_icon: 'https://your-app.com/logo.png', // URL to your app icon
+        ios_attachments: { id: 'https://your-app.com/image.jpg' }, // iOS-specific image
+        android_accent_color: 'FF00FF00', // Green accent color for Android
+        android_small_icon: 'ic_stat_onesignal_default', // Custom small icon
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${oneSignalRestApiKey}`,
+        },
+      }
+    );
+
+    console.log('Notification sent successfully:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to send notification:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 // Mettre à jour le statut d'une commande
 exports.updateOrderStatus = async (req, res) => {
   try {
@@ -97,18 +141,44 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
     
-    const updatedOrder = await Order.findByIdAndUpdate(
-      id,
-      { status, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    );
-    
-    if (!updatedOrder) {
+    // Find the order first
+    const order = await Order.findById(id);
+    if (!order) {
       return res.status(404).json({ 
         success: false,
         message: 'Commande non trouvée'
       });
     }
+    
+    // Get the userId from the order
+    const userId = order.userId;
+    
+    // Find the user associated with this order to get playerId
+    const user = await User.findById(userId);
+    
+    if (user && user.oneSignalPlayerId) {
+      // Send notification if user has a player ID
+      try {
+        await sendOneSignalNotification(
+          user.oneSignalPlayerId,
+          `Le statut de votre commande #${order._id.toString().slice(-6)} a été mis à jour: ${status}`,
+          id,
+          status
+        );
+        console.log(`Notification sent to user ${userId} with player ID: ${user.oneSignalPlayerId}`);
+      } catch (notificationError) {
+        console.error('Failed to send notification:', notificationError);
+      }
+    } else {
+      console.log(`No OneSignal Player ID found for user ${userId}`);
+    }
+    
+    // Update the order status
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      { status, updatedAt: new Date() },
+      { new: true, runValidators: true }
+    );
     
     res.status(200).json({
       success: true,
@@ -144,6 +214,25 @@ exports.cancelOrder = async (req, res) => {
         success: false,
         message: 'Impossible d\'annuler une commande qui est déjà en livraison ou livrée',
       });
+    }
+
+    // Get the user ID from the order
+    const userId = order.userId;
+    
+    // Notify the user about cancellation
+    try {
+      const user = await User.findById(userId);
+      if (user && user.oneSignalPlayerId) {
+        await sendOneSignalNotification(
+          user.oneSignalPlayerId,
+          `Votre commande #${order._id.toString().slice(-6)} a été annulée.`,
+          id,
+          'Annulée'
+        );
+        console.log(`Cancellation notification sent to user ${userId}`);
+      }
+    } catch (notificationError) {
+      console.error('Failed to send cancellation notification:', notificationError);
     }
 
     // Delete the order

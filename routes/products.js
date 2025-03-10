@@ -92,6 +92,94 @@ router.delete('/:id', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+router.get('/ratings/:productId', async (req, res) => {
+  try {
+    const productId = req.params.productId;
+
+    const ratingData = await Product.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(productId) } },
+      {
+        $lookup: {
+          from: 'reviews', // Assuming your reviews collection is named 'reviews'
+          localField: '_id',
+          foreignField: 'productId',
+          as: 'reviews'
+        }
+      },
+      {
+        $addFields: {
+          averageRating: { $ifNull: [{ $avg: '$reviews.rating' }, 0] },
+          totalReviews: { $size: '$reviews' }
+        }
+      },
+      {
+        $project: {
+          averageRating: 1,
+          totalReviews: 1,
+          reviews: 1
+        }
+      }
+    ]);
+
+    if (ratingData.length > 0) {
+      res.json({
+        averageRating: ratingData[0].averageRating,
+        totalReviews: ratingData[0].totalReviews
+      });
+    } else {
+      res.json({
+        averageRating: 0,
+        totalReviews: 0
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Get detailed reviews for a product
+router.get('/reviews/:productId', async (req, res) => {
+  try {
+    const productId = req.params.productId;
+
+    const reviews = await Review.find({ productId: productId })
+      .populate('userId', 'prenom nom') // Assuming you want to include user details
+      .sort({ createdAt: -1 }); // Sort by most recent first
+
+    res.json(reviews);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Add a new review
+router.post('/reviews/add', async (req, res) => {
+  try {
+    const { productId, userId, rating, comment } = req.body;
+
+    const newReview = new Review({
+      productId,
+      userId,
+      rating,
+      comment,
+      createdAt: new Date()
+    });
+
+    const savedReview = await newReview.save();
+
+    // Recalculate and update product's average rating
+    const reviews = await Review.find({ productId });
+    const averageRating = reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
+
+    await Product.findByIdAndUpdate(productId, { 
+      averageRating: averageRating 
+    });
+
+    res.status(201).json(savedReview);
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
 
 
 module.exports = router;

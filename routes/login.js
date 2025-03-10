@@ -144,6 +144,22 @@ router.post('/api/login', async (req, res) => {
     return res.status(500).json({ message: 'Error logging in user', error: err.message });
   }
 });
+// routes/user.js
+router.post('/api/store-player-id', async (req, res) => {
+  const { userId, playerId } = req.body;
+
+  try {
+    await User.findByIdAndUpdate(
+      userId,
+      { oneSignalPlayerId: playerId },
+      { new: true }
+    );
+    res.status(200).json({ message: 'Player ID updated' });
+  } catch (error) {
+    console.error('Error storing Player ID:', error);
+    res.status(500).json({ error: 'Failed to store Player ID' });
+  }
+});
 
 router.get('/api/users/:email', async (req, res) => {
   try {
