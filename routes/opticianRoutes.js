@@ -4,6 +4,10 @@ const multer = require("multer");
 const path = require("path");
 const Optician = require('../models/opticianModel');
 const fs = require("fs");
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt'); // Add this missing import
+const { sendWelcomeEmail } = require('../services/emailService'); // Import the email service
+const JWT_SECRET = process.env.JWT_SECRET || 'your_fallback_secret_key'; // Utilisez une variable d'environnement en production
 
 // Create the "images" directory if it doesn't exist
 const imagesDir = path.join(__dirname, "../images");
@@ -78,18 +82,47 @@ router.post("/upload-optician-image", upload.single("image"), async (req, res) =
 // Get all opticians
 router.get('/opticians', async (req, res) => {
   try {
-    const opticians = await Optician.find();
+    const { email } = req.query;
+    let opticians;
+
+    if (email) {
+      // If email query parameter is provided, find optician by email
+      opticians = await Optician.find({ email: email });
+    } else {
+      // Otherwise, get all opticians
+      opticians = await Optician.find();
+    }
+
     res.status(200).json(opticians);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// Add a new optician
 router.post('/opticians', async (req, res) => {
-  const optician = new Optician(req.body);
   try {
+    const { password, ...rest } = req.body;
+
+    // Hacher le mot de passe
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Créer un nouvel opticien avec le mot de passe haché
+    const optician = new Optician({
+      ...rest,
+      password: hashedPassword,
+    });
+
     const newOptician = await optician.save();
+
+    // Envoyer l'email de bienvenue avec les credentials
+    try {
+      await sendWelcomeEmail(newOptician);
+      console.log(`Email de bienvenue envoyé à ${newOptician.email}`);
+    } catch (emailError) {
+      console.error(`Échec de l'envoi de l'email à ${newOptician.email}:`, emailError);
+      // Ne pas échouer la requête si l'email échoue
+    }
+
     res.status(201).json(newOptician);
   } catch (error) {
     res.status(400).json({ message: error.message });
@@ -124,22 +157,44 @@ router.delete('/opticians/:id', async (req, res) => {
   }
 });
 
-// Get optician by email
-router.get('/opticians', async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
-    const { email } = req.query;
-    let opticians;
+    const { email, password } = req.body;
 
-    if (email) {
-      // If email query parameter is provided, find optician by email
-      opticians = await Optician.find({ email: email });
-    } else {
-      // Otherwise, get all opticians
-      opticians = await Optician.find();
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
     }
 
-    res.status(200).json(opticians);
+    const optician = await Optician.findOne({ email });
+
+    if (!optician) {
+      console.log(`Optician with email ${email} not found`);
+      return res.status(404).json({ message: 'Optician not found' });
+    }
+
+    console.log(`Optician found: ${optician.email}`);
+
+    // Vérifier le mot de passe avec bcrypt
+    const isMatch = await bcrypt.compare(password, optician.password);
+    if (!isMatch) {
+      console.log(`Password mismatch for optician ${optician.email}`);
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { 
+        id: optician._id,
+        email: optician.email,
+        nom: optician.nom,
+        prenom: optician.prenom
+      },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(200).json({ token, userId: optician._id });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: error.message });
   }
 });
