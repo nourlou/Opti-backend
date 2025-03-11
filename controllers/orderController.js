@@ -209,7 +209,7 @@ exports.cancelOrder = async (req, res) => {
     }
 
     // Check if the order can be canceled
-    if (['En livraison', 'Livrée'].includes(order.status)) {
+    if (['En livraison', 'Completée'].includes(order.status)) {
       return res.status(400).json({
         success: false,
         message: 'Impossible d\'annuler une commande qui est déjà en livraison ou livrée',
