@@ -3,6 +3,66 @@ const axios = require('axios');
 const User = require('../models/User');
 
 // Créer une nouvelle commande
+// Delete an order permanently
+exports.deleteOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`Permanently deleting order with ID: ${id}`);
+
+    // Find the order first to check if it exists
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Commande non trouvée'
+      });
+    }
+
+    // Get the user associated with this order for notification purposes
+    const userId = order.userId;
+    const user = await User.findById(userId);
+
+    // Delete the order
+    const deletedOrder = await Order.findByIdAndDelete(id);
+    
+    if (!deletedOrder) {
+      return res.status(404).json({
+        success: false,
+        message: 'La commande n\'a pas pu être supprimée'
+      });
+    }
+
+    // Send notification to the user if they have a OneSignal player ID
+    if (user && user.oneSignalPlayerId) {
+      const notificationMessage = `Votre commande #${order._id.toString().slice(-6)} a été supprimée définitivement.`;
+      
+      try {
+        await sendOneSignalNotification(
+          user.oneSignalPlayerId,
+          notificationMessage,
+          id,
+          'Supprimée'
+        );
+        console.log(`Deletion notification sent to user ${userId}`);
+      } catch (notificationError) {
+        console.error('Failed to send deletion notification:', notificationError);
+      }
+    }
+
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Commande supprimée définitivement'
+    });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression définitive de la commande',
+      error: error.message
+    });
+  }
+};
 exports.createOrder = async (req, res) => {
   try {
     console.log('Creating order with data:', JSON.stringify(req.body));
@@ -132,15 +192,15 @@ const sendOneSignalNotification = async (playerId, message, orderId, newStatus) 
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
-    
+    const { status, cancellationReason } = req.body; // Add cancellationReason to the request body
+
     if (!status) {
       return res.status(400).json({ 
         success: false,
         message: 'Le statut est requis'
       });
     }
-    
+
     // Find the order first
     const order = await Order.findById(id);
     if (!order) {
@@ -149,19 +209,43 @@ exports.updateOrderStatus = async (req, res) => {
         message: 'Commande non trouvée'
       });
     }
-    
-    // Get the userId from the order
+
+    // Prepare the update fields
+    const updateFields = {
+      status,
+      updatedAt: new Date(),
+    };
+
+    // Add cancellation reason if the status is "Annulée"
+    if (status === 'Annulée' && cancellationReason) {
+      updateFields.cancellationReason = cancellationReason;
+    }
+
+    // Update the order status (and cancellation reason if applicable)
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      updateFields,
+      { new: true, runValidators: true }
+    );
+
+    // Get the user associated with this order to send a notification
     const userId = order.userId;
-    
-    // Find the user associated with this order to get playerId
     const user = await User.findById(userId);
-    
+
     if (user && user.oneSignalPlayerId) {
-      // Send notification if user has a player ID
+      // Prepare the notification message
+      let notificationMessage = `Le statut de votre commande #${order._id.toString().slice(-6)} a été mis à jour: ${status}`;
+
+      // Include the cancellation reason in the notification if applicable
+      if (status === 'Annulée' && cancellationReason) {
+        notificationMessage += `\nRaison: ${cancellationReason}`;
+      }
+
+      // Send the notification
       try {
         await sendOneSignalNotification(
           user.oneSignalPlayerId,
-          `Le statut de votre commande #${order._id.toString().slice(-6)} a été mis à jour: ${status}`,
+          notificationMessage,
           id,
           status
         );
@@ -172,14 +256,8 @@ exports.updateOrderStatus = async (req, res) => {
     } else {
       console.log(`No OneSignal Player ID found for user ${userId}`);
     }
-    
-    // Update the order status
-    const updatedOrder = await Order.findByIdAndUpdate(
-      id,
-      { status, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    );
-    
+
+    // Return the updated order
     res.status(200).json({
       success: true,
       data: updatedOrder
@@ -192,12 +270,12 @@ exports.updateOrderStatus = async (req, res) => {
     });
   }
 };
-
 // Annuler une commande
 exports.cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`Deleting order with ID: ${id}`);
+    const { cancellationReason } = req.body; // Add cancellationReason to the request body
+    console.log(`Canceling order with ID: ${id}`);
 
     // Find the order
     const order = await Order.findById(id);
@@ -216,38 +294,55 @@ exports.cancelOrder = async (req, res) => {
       });
     }
 
-    // Get the user ID from the order
+    // Update the order status to "Annulée" and include the cancellation reason
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      {
+        status: 'Annulée',
+        cancellationReason, // Save the cancellation reason
+        updatedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    // Get the user associated with this order to send a notification
     const userId = order.userId;
-    
-    // Notify the user about cancellation
-    try {
-      const user = await User.findById(userId);
-      if (user && user.oneSignalPlayerId) {
+    const user = await User.findById(userId);
+
+    if (user && user.oneSignalPlayerId) {
+      // Prepare the notification message
+      let notificationMessage = `Votre commande #${order._id.toString().slice(-6)} a été annulée.`;
+
+      // Include the cancellation reason in the notification
+      if (cancellationReason) {
+        notificationMessage += `\nRaison: ${cancellationReason}`;
+      }
+
+      // Send the notification
+      try {
         await sendOneSignalNotification(
           user.oneSignalPlayerId,
-          `Votre commande #${order._id.toString().slice(-6)} a été annulée.`,
+          notificationMessage,
           id,
           'Annulée'
         );
         console.log(`Cancellation notification sent to user ${userId}`);
+      } catch (notificationError) {
+        console.error('Failed to send cancellation notification:', notificationError);
       }
-    } catch (notificationError) {
-      console.error('Failed to send cancellation notification:', notificationError);
     }
 
-    // Delete the order
-    await Order.findByIdAndDelete(id);
-    console.log('Order deleted successfully');
-
+    // Return success response
     res.status(200).json({
       success: true,
-      message: 'Commande supprimée avec succès',
+      data: updatedOrder,
+      message: 'Commande annulée avec succès',
     });
   } catch (error) {
-    console.error('Error deleting order:', error);
+    console.error('Error canceling order:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la suppression de la commande',
+      message: 'Erreur lors de l\'annulation de la commande',
       error: error.message,
     });
   }

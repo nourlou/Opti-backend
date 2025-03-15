@@ -69,7 +69,11 @@ const orderSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  cancellationReason:{
+    type: String,
+    required: false
+  },
 });
 
 // Mettre à jour la date de modification lors de la mise à jour d'une commande

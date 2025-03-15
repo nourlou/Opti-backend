@@ -86,7 +86,7 @@ router.post('/api/users', async (req, res) => {
     await newUser.save();  // Sauvegarde l'utilisateur dans MongoDB
     const token = jwt.sign(
       { id: newUser._id, email: newUser.email },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || "dfghjkl",
       { expiresIn: '1h' }
     );
 
@@ -134,7 +134,7 @@ router.post('/api/login', async (req, res) => {
     
 
     // Save refresh token to user and persist changes
-   // user.refreshTokens.push(refreshToken);
+    user.refreshToken = refreshToken;
     await user.save(); // Persist the refresh token
 
     // Return both tokens to the client

@@ -9,6 +9,10 @@ const opticienSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  ville: { // New field
+    type: String,
+    required: true
+  },
   phone: {
     type: String,
     required: true
