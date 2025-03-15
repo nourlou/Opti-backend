@@ -3,6 +3,8 @@ const router = express.Router();
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { sendWelcomeEmail } = require('../services/emailService'); // Import the email service
+const JWT_SECRET = process.env.JWT_SECRET || 'your_fallback_secret_key'; // Utilisez une variable d'environnement en production
 
 // Get all users
 router.get('/users', async (req, res) => {
@@ -20,7 +22,7 @@ router.get('/users/:email', async (req, res) => {
   try {
     const user = await User.findOne({ email: req.params.email });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return ares.status(404).json({ message: 'User not found' });
     }
     res.status(200).json(user);
   } catch (err) {
@@ -29,57 +31,73 @@ router.get('/users/:email', async (req, res) => {
   }
 });
 
-// Register new user
+
+
+// Route pour ajouter un utilisateur
 router.post('/users', async (req, res) => {
   try {
     const { nom, prenom, email, date, password, phone, region, genre } = req.body;
-    
-    // Validate all required fields
+
+    // Validation des champs obligatoires
     if (!nom || !prenom || !email || !date || !password || !phone || !region || !genre) {
-      return res.status(400).json({ message: 'All fields are required' });
+      return res.status(400).json({ message: 'Tous les champs sont obligatoires' });
     }
-    
+
+    // Vérifier si l'utilisateur existe déjà
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'Un utilisateur avec cet email existe déjà' });
     }
-    
+
+    // Hacher le mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Create the new user
-    const newUser = new User({ 
-      nom, 
-      prenom, 
-      email, 
-      date, 
-      password: hashedPassword, 
-      phone, 
-      region, 
+
+    // Créer un nouvel utilisateur
+    const newUser = new User({
+      nom,
+      prenom,
+      email,
+      date,
+      password: hashedPassword,
+      phone,
+      region,
       genre,
       status: 'Active',
       imageUrl: '',
-      refreshToken: ''
+      refreshToken: '',
     });
-    
+
+    // Sauvegarder l'utilisateur dans la base de données
     await newUser.save();
-    
-    // Generate a JWT token for the new user
+
+    // Envoyer un email de bienvenue avec le mot de passe en clair
+    try {
+      await sendWelcomeEmail(newUser, password); // Envoyer le mot de passe en clair
+      console.log(`Email de bienvenue envoyé à ${newUser.email}`);
+    } catch (emailError) {
+      console.error(`Échec de l'envoi de l'email à ${newUser.email}:`, emailError);
+    }
+
+    // Générer un token JWT pour l'utilisateur
     const token = jwt.sign(
       { id: newUser._id, email: newUser.email },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
-    
-    return res.status(201).json({
-      message: 'User registered successfully',
+
+    // Réponse avec les détails de l'utilisateur et le token
+    res.status(201).json({
+      message: 'Utilisateur enregistré avec succès',
       userId: newUser._id,
-      token
+      token,
     });
-  } catch (err) {
-    console.error('Registration error:', err);
-    return res.status(500).json({ message: 'Error registering user', error: err.message });
+  } catch (error) {
+    console.error('Erreur lors de l\'enregistrement de l\'utilisateur:', error);
+    res.status(500).json({ message: 'Erreur lors de l\'enregistrement de l\'utilisateur', error: error.message });
   }
 });
+
+module.exports = router;
 
 // Update user
 router.put('/users/:email', async (req, res) => {

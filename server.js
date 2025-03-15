@@ -53,7 +53,7 @@ app.use('/api', forgotPasswordRoutes);
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log('[${new Date().toISOString()}] ${req.method} ${req.url}');
   next();
 });
 
@@ -84,26 +84,16 @@ dotenv.config(); // Load environment variables
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key';
 
 
-
+const mongoURI = 'mongodb+srv://OptiApp:OptiApp2357@cluster0.j5jbz.mongodb.net/Opti_app?retryWrites=true&w=majority';
 // MongoDB connection
-mongoose.connect('mongodb://localhost:27017/Opti_app')
-  .then(async () => {
-    console.log('✅ MongoDB connected successfully');
-    
-    // Log database info
-    const db = mongoose.connection.db;
-    const collections = await db.listCollections().toArray();
-    console.log('\nDatabase Collections:', collections.map(c => c.name));
-    
-    // Check users collection
-    const usersCount = await db.collection('users').countDocuments();
-    console.log('Total users in database:', usersCount);
-    
-    // Sample first user
-    const sampleUser = await db.collection('users').findOne({});
-    console.log('Sample user structure:', 
-      sampleUser ? Object.keys(sampleUser) : 'No users found'
-    );
+// MongoDB connection
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => {
+    console.log('✅ Connected to MongoDB Atlas');
+    // Add more database logging if needed
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err);
   });
 mongoose.connection.on('connected', () => {
   console.log('Mongoose connected to:', mongoose.connection.host);
@@ -141,4 +131,3 @@ const PORT = 3000;
 app.listen(3000, '0.0.0.0', () => {
   console.log('Server running on http://localhost:3000');
 });
-

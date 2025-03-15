@@ -25,17 +25,38 @@ const orderItemSchema = new mongoose.Schema({
   totalPrice: {
     type: Number,
     required: true
+  },
+  opticienId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Opticien',
+    required: true
   }
 });
+
 
 const orderSchema = new mongoose.Schema({
   userId: {
     type: String,
     required: true
   },
-  items: {
-    type: [orderItemSchema],
+  items: [
+    {
+      productId: String,
+      productName: String,
+      quantity: Number,
+      unitPrice: Number,
+      totalPrice: Number,
+      opticienId: String 
+    }
+  ],
+  address: {
+    type: String,
     required: true
+  },
+  status: {
+    type: String,
+    enum: ['En attente', 'Confirmée', 'En livraison', 'Completée', 'Annuller'],
+    default: 'En attente'
   },
   subtotal: {
     type: Number,
@@ -49,17 +70,13 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  status: {
-    type: String,
-    enum: ['En attente', 'Confirmée', 'En préparation', 'En livraison', 'Livrée', 'Annulée'],
-    default: 'En attente'
-  },
-  address: {
+  paymentMethod: {
     type: String,
     required: true
   },
-  paymentMethod: {
-    type: String,
+  opticienId: {
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Opticien', 
     required: true
   },
   createdAt: {
@@ -72,12 +89,4 @@ const orderSchema = new mongoose.Schema({
   }
 });
 
-// Mettre à jour la date de modification lors de la mise à jour d'une commande
-orderSchema.pre('findOneAndUpdate', function(next) {
-  this.set({ updatedAt: new Date() });
-  next();
-});
-
-const Order = mongoose.model('Order', orderSchema);
-
-module.exports = Order;
+module.exports = mongoose.model('Order', orderSchema);
