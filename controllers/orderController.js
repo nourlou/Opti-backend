@@ -18,7 +18,7 @@ const transporter = nodemailer.createTransport({
 // Helper function to generate status tracking HTML
 const generateStatusTracking = (currentStatus) => {
   const statuses = ['En attente', 'Confirmée', 'En livraison', 'Completée', 'Annuller'];
-    const currentIndex = statuses.indexOf(currentStatus);
+  const currentIndex = statuses.indexOf(currentStatus);
   
   let trackingHTML = '<div style="display: flex; justify-content: space-between; margin: 20px 0;">';
   
@@ -27,27 +27,76 @@ const generateStatusTracking = (currentStatus) => {
     const color = isCompleted ? '#4CAF50' : '#E0E0E0';
     const textColor = isCompleted ? '#FFFFFF' : '#757575';
     
-    trackingHTML += `
-      <div style="display: flex; flex-direction: column; align-items: center; flex: 1;">
-        <div style="background-color: ${color}; color: ${textColor}; width: 30px; height: 30px; border-radius: 50%; display: flex; justify-content: center; align-items: center; margin-bottom: 5px;">
-          ${index + 1}
-        </div>
-        <div style="font-size: 12px; color: ${isCompleted ? '#4CAF50' : '#757575'}; text-align: center;">
-          ${status}
-        </div>
-      </div>
-    `;
-    
-    // Add connecting line if not the last item
-    if (index < statuses.length - 1) {
-      const lineColor = index < currentIndex ? '#4CAF50' : '#E0E0E0';
-      trackingHTML += `<div style="flex-grow: 1; height: 2px; background-color: ${lineColor}; margin-top: 15px;"></div>`;
-    }
+    // Add missing content here
+    trackingHTML += `<div style="text-align: center;">
+      <div style="background-color: ${color}; color: ${textColor}; padding: 10px; border-radius: 5px;">${status}</div>
+    </div>`;
   });
   
   trackingHTML += '</div>';
   return trackingHTML;
 };
+// Créer une nouvelle commande
+exports.deleteOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log(`Permanently deleting order with ID: ${id}`);
+
+    // Find the order first to check if it exists
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Commande non trouvée'
+      });
+    }
+
+    // Get the user associated with this order for notification purposes
+    const userId = order.userId;
+    const user = await User.findById(userId);
+
+    // Delete the order
+    const deletedOrder = await Order.findByIdAndDelete(id);
+    
+    if (!deletedOrder) {
+      return res.status(404).json({
+        success: false,
+        message: 'La commande n\'a pas pu être supprimée'
+      });
+    }
+
+    // Send notification to the user if they have a OneSignal player ID
+    if (user && user.oneSignalPlayerId) {
+      const notificationMessage = `Votre commande #${order._id.toString().slice(-6)} a été supprimée définitivement.`;
+      
+      try {
+        await sendOneSignalNotification(
+          user.oneSignalPlayerId,
+          notificationMessage,
+          id,
+          'Supprimée'
+        );
+        console.log(`Deletion notification sent to user ${userId}`);
+      } catch (notificationError) {
+        console.error('Failed to send deletion notification:', notificationError);
+      }
+    }
+
+    // Return success response
+    res.status(200).json({
+      success: true,
+      message: 'Commande supprimée définitivement'
+    });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression définitive de la commande',
+      error: error.message
+    });
+  }
+};
+  
 
 // Helper function to get status description
 const getStatusDescription = (status) => {
@@ -300,9 +349,8 @@ const sendOneSignalNotification = async (playerId, message, orderId, newStatus) 
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, cancellationReason } = req.body; // Add cancellationReason to the request body
 
-    // Vérifier si le statut est fourni
     if (!status) {
       return res.status(400).json({ 
         success: false,
@@ -319,15 +367,42 @@ exports.updateOrderStatus = async (req, res) => {
       });
     }
 
-    // Trouver l'utilisateur associé à la commande
-    const user = await User.findById(order.userId);
+    // Prepare the update fields
+    const updateFields = {
+      status,
+      updatedAt: new Date(),
+    };
 
-    // Envoyer une notification OneSignal
+    // Add cancellation reason if the status is "Annulée"
+    if (status === 'Annulée' && cancellationReason) {
+      updateFields.cancellationReason = cancellationReason;
+    }
+
+    // Update the order status (and cancellation reason if applicable)
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      updateFields,
+      { new: true, runValidators: true }
+    );
+
+    // Get the user associated with this order to send a notification
+    const userId = order.userId;
+    const user = await User.findById(userId);
+
     if (user && user.oneSignalPlayerId) {
+      // Prepare the notification message
+      let notificationMessage = `Le statut de votre commande #${order._id.toString().slice(-6)} a été mis à jour: ${status}`;
+
+      // Include the cancellation reason in the notification if applicable
+      if (status === 'Annulée' && cancellationReason) {
+        notificationMessage += `\nRaison: ${cancellationReason}`;
+      }
+
+      // Send the notification
       try {
         await sendOneSignalNotification(
           user.oneSignalPlayerId,
-          `Le statut de votre commande #${order._id.toString().slice(-6)} a été mis à jour: ${status}`,
+          notificationMessage,
           id,
           status
         );
@@ -337,27 +412,7 @@ exports.updateOrderStatus = async (req, res) => {
       }
     }
 
-    // Mettre à jour le statut de la commande
-    const updatedOrder = await Order.findByIdAndUpdate(
-      id,
-      { status, updatedAt: new Date() },
-      { new: true, runValidators: true }
-    );
-    if (status === 'Completée' && order.status !== 'En livraison') {
-      return res.status(400).json({
-        success: false,
-        message: 'La commande doit être en livraison avant d\'être marquée comme complétée.'
-      });
-    }
-    // Envoyer un email de notification de statut
-    if (user && user.email) {
-      try {
-        await sendOrderStatusEmail(user, updatedOrder, status); // <-- Appel de la fonction
-        console.log(`Status update email sent to user ${order.userId} at email: ${user.email}`);
-      } catch (emailError) {
-        console.error('Failed to send status update email:', emailError);
-      }
-    }
+
 
     res.status(200).json({
       success: true,
@@ -371,12 +426,12 @@ exports.updateOrderStatus = async (req, res) => {
     });
   }
 };
-
 // Annuler une commande
 exports.cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`Deleting order with ID: ${id}`);
+    const { cancellationReason } = req.body; // Add cancellationReason to the request body
+    console.log(`Canceling order with ID: ${id}`);
 
     // Find the order
     const order = await Order.findById(id);
@@ -388,46 +443,63 @@ exports.cancelOrder = async (req, res) => {
     }
 
     // Check if the order can be canceled
-    if (['En livraison', 'Livrée'].includes(order.status)) {
+    if (['En livraison', 'Completée'].includes(order.status)) {
       return res.status(400).json({
         success: false,
         message: 'Impossible d\'annuler une commande qui est déjà en livraison ou livrée',
       });
     }
 
-    // Get the user ID from the order
+    // Update the order status to "Annulée" and include the cancellation reason
+    const updatedOrder = await Order.findByIdAndUpdate(
+      id,
+      {
+        status: 'Annulée',
+        cancellationReason, // Save the cancellation reason
+        updatedAt: new Date(),
+      },
+      { new: true }
+    );
+
+    // Get the user associated with this order to send a notification
     const userId = order.userId;
-    
-    // Notify the user about cancellation
-    try {
-      const user = await User.findById(userId);
-      if (user && user.oneSignalPlayerId) {
+    const user = await User.findById(userId);
+
+    if (user && user.oneSignalPlayerId) {
+      // Prepare the notification message
+      let notificationMessage = `Votre commande #${order._id.toString().slice(-6)} a été annulée.`;
+
+      // Include the cancellation reason in the notification
+      if (cancellationReason) {
+        notificationMessage += `\nRaison: ${cancellationReason}`;
+      }
+
+      // Send the notification
+      try {
         await sendOneSignalNotification(
           user.oneSignalPlayerId,
-          `Votre commande #${order._id.toString().slice(-6)} a été annulée.`,
+          notificationMessage,
           id,
           'Annulée'
         );
         console.log(`Cancellation notification sent to user ${userId}`);
+      } catch (notificationError) {
+        console.error('Failed to send cancellation notification:', notificationError);
       }
-    } catch (notificationError) {
-      console.error('Failed to send cancellation notification:', notificationError);
     }
 
-    // Delete the order
-    await Order.findByIdAndDelete(id);
-    console.log('Order deleted successfully');
-
+    // Return success response
     res.status(200).json({
       success: true,
-      message: 'Commande supprimée avec succès',
+      data: updatedOrder,
+      message: 'Commande annulée avec succès',
     });
   } catch (error) {
-    console.error('Error deleting order:', error);
+    console.error('Error canceling order:', error);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la suppression de la commande',
+      message: 'Erreur lors de l\'annulation de la commande',
       error: error.message,
     });
   }
-};
+  }

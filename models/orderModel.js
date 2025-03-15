@@ -70,7 +70,12 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  paymentMethod: {
+  status: {
+    type: String,
+    enum: ['En attente', 'Confirmée', 'En livraison', 'Completée', 'Annulée'],
+    default: 'En attente'
+  },
+  address: {
     type: String,
     required: true
   },
@@ -86,7 +91,11 @@ const orderSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  cancellationReason:{
+    type: String,
+    required: false
+  },
 });
 
 module.exports = mongoose.model('Order', orderSchema);

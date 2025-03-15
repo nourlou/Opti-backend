@@ -156,7 +156,7 @@ router.delete('/opticians/:id', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/loginOpticien', async (req, res) => {
   try {
     const { email, password } = req.body;
 
