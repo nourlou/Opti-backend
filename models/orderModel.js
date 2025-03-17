@@ -43,10 +43,14 @@ const orderSchema = new mongoose.Schema({
     {
       productId: String,
       productName: String,
+      productImage: String,
       quantity: Number,
       unitPrice: Number,
       totalPrice: Number,
-      opticienId: String 
+      opticienId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Opticien'
+      }
     }
   ],
   address: {
@@ -55,7 +59,7 @@ const orderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['En attente', 'Confirmée', 'En livraison', 'Completée', 'Annuller'],
+    enum: ['En attente', 'Confirmée', 'En livraison', 'Completée', 'Annulée'],
     default: 'En attente'
   },
   subtotal: {
@@ -70,18 +74,13 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  status: {
-    type: String,
-    enum: ['En attente', 'Confirmée', 'En livraison', 'Completée', 'Annulée'],
-    default: 'En attente'
-  },
-  address: {
+  paymentMethod: {
     type: String,
     required: true
   },
   opticienId: {
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Opticien', 
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Opticien',
     required: true
   },
   createdAt: {
@@ -92,10 +91,8 @@ const orderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  cancellationReason:{
+  cancellationReason: {
     type: String,
     required: false
-  },
+  }
 });
-
-module.exports = mongoose.model('Order', orderSchema);

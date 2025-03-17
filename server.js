@@ -107,7 +107,7 @@ mongoose.connection.on('error', (err) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://192.168.1.11:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 

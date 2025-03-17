@@ -183,7 +183,7 @@ const sendOrderStatusEmail = async (user, order, newStatus) => {
 
 exports.createOrder = async (req, res) => {
   try {
-    const { userId, items, address,paymentMethod } = req.body;
+    const { userId, items, address, paymentMethod } = req.body;
 
     const orderItems = [];
     let subtotal = 0;
@@ -212,6 +212,14 @@ exports.createOrder = async (req, res) => {
       });
     }
     
+    // Vérifiez que le premier produit a un opticienId valide
+    if (!orderItems[0] || !orderItems[0].opticienId) {
+      return res.status(400).json({
+        success: false,
+        message: 'ID de l\'opticien manquant dans les produits'
+      });
+    }
+    
     const opticienId = orderItems[0].opticienId; 
     console.log('Boutique ID:', opticienId); 
     
@@ -225,19 +233,18 @@ exports.createOrder = async (req, res) => {
       deliveryFee,
       total: subtotal + deliveryFee,
       paymentMethod,
-      opticienId,
-      opticienId 
+      opticienId // Assigné une seule fois
     });
     
     const savedOrder = await order.save();
-    console.log('Order saved:', savedOrder); // Log pour déboguer
+    console.log('Order saved:', savedOrder);
     
     res.status(201).json({
       success: true,
       data: savedOrder
     });
   } catch (error) {
-    console.error('Error creating order:', error); // Log pour déboguer
+    console.error('Error creating order:', error);
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la création de la commande',
