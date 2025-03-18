@@ -6,6 +6,8 @@ const fs = require('fs');
 const path = require('path');
 const handlebars = require('handlebars');
 const Opticien = require('../models/Boutique');
+const Opticien = require('../models/Product');
+
 
 const transporter = nodemailer.createTransport({
   service: 'gmail', // Ou un autre service comme 'outlook', 'yahoo', etc.
