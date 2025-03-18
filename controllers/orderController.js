@@ -1,6 +1,7 @@
 const Order = require('../models/orderModel');
 const axios = require('axios');
 const User = require('../models/User');
+const Product = require('../models/Product');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');

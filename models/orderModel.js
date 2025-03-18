@@ -96,3 +96,6 @@ const orderSchema = new mongoose.Schema({
     required: false
   }
 });
+
+// Add this line to export the model
+module.exports = mongoose.model('Order', orderSchema);
