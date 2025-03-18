@@ -25,17 +25,42 @@ const orderItemSchema = new mongoose.Schema({
   totalPrice: {
     type: Number,
     required: true
+  },
+  opticienId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Opticien',
+    required: true
   }
 });
+
 
 const orderSchema = new mongoose.Schema({
   userId: {
     type: String,
     required: true
   },
-  items: {
-    type: [orderItemSchema],
+  items: [
+    {
+      productId: String,
+      productName: String,
+      productImage: String,
+      quantity: Number,
+      unitPrice: Number,
+      totalPrice: Number,
+      opticienId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Opticien'
+      }
+    }
+  ],
+  address: {
+    type: String,
     required: true
+  },
+  status: {
+    type: String,
+    enum: ['En attente', 'Confirmée', 'En livraison', 'Completée', 'Annulée'],
+    default: 'En attente'
   },
   subtotal: {
     type: Number,
@@ -49,17 +74,13 @@ const orderSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  status: {
-    type: String,
-    enum: ['En attente', 'Confirmée', 'En livraison', 'Completée', 'Annulée'],
-    default: 'En attente'
-  },
-  address: {
+  paymentMethod: {
     type: String,
     required: true
   },
-  paymentMethod: {
-    type: String,
+  opticienId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Opticien',
     required: true
   },
   createdAt: {
@@ -70,18 +91,11 @@ const orderSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  cancellationReason:{
+  cancellationReason: {
     type: String,
     required: false
-  },
+  }
 });
 
-// Mettre à jour la date de modification lors de la mise à jour d'une commande
-orderSchema.pre('findOneAndUpdate', function(next) {
-  this.set({ updatedAt: new Date() });
-  next();
-});
-
-const Order = mongoose.model('Order', orderSchema);
-
-module.exports = Order;
+// Add this line to export the model
+module.exports = mongoose.model('Order', orderSchema);

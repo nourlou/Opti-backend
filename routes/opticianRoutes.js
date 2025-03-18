@@ -101,26 +101,25 @@ router.get('/opticians', async (req, res) => {
 
 router.post('/opticians', async (req, res) => {
   try {
-    const { password, ...rest } = req.body;
+    const { password, ...rest } = req.body; // Récupérer le mot de passe en clair
 
-    // Hacher le mot de passe
+    // 1. Hacher le mot de passe pour la base de données
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Créer un nouvel opticien avec le mot de passe haché
+    // 2. Créer l'opticien avec le mot de passe haché
     const optician = new Optician({
       ...rest,
-      password: hashedPassword,
+      password: hashedPassword, 
     });
 
     const newOptician = await optician.save();
 
-    // Envoyer l'email de bienvenue avec les credentials
+    // 3. Envoyer l'email AVEC LE MOT DE PASSE EN CLAIR
     try {
-      await sendWelcomeEmail(newOptician);
+      await sendWelcomeEmail(newOptician, password); // <-- Ajouter le password original ici
       console.log(`Email de bienvenue envoyé à ${newOptician.email}`);
     } catch (emailError) {
       console.error(`Échec de l'envoi de l'email à ${newOptician.email}:`, emailError);
-      // Ne pas échouer la requête si l'email échoue
     }
 
     res.status(201).json(newOptician);

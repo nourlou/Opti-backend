@@ -10,7 +10,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Fonction pour envoyer un email de bienvenue avec les credentials
-const sendWelcomeEmail = async (optician) => {
+const sendWelcomeEmail = async (optician, plainPassword) => {
   try {
     const mailOptions = {
       from: process.env.EMAIL_USER || 'votre_email@gmail.com',
@@ -22,7 +22,7 @@ const sendWelcomeEmail = async (optician) => {
           <p>Votre compte a été créé avec succès. Voici vos informations de connexion:</p>
           <div style="background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 20px 0;">
             <p><strong>Email:</strong> ${optician.email}</p>
-            <p><strong>Mot de passe:</strong> ${optician.password}</p>
+            <p><strong>Mot de passe:</strong> ${plainPassword}</p> <!-- Utiliser plainPassword ici -->
           </div>
           <p>Nous vous recommandons de changer votre mot de passe après votre première connexion.</p>
           <p>Pour vous connecter, veuillez visiter notre plateforme et utiliser les informations ci-dessus.</p>

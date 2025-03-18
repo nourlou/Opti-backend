@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mise à jour de votre commande</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f9f9f9;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+      text-align: center;
+      padding: 20px 0;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    .logo {
+      max-width: 150px;
+      height: auto;
+    }
+    h1 {
+      color: #4CAF50;
+      margin: 0;
+      padding: 10px 0;
+      font-size: 24px;
+    }
+    .order-info {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    .order-status {
+      text-align: center;
+      padding: 15px 0;
+      margin: 20px 0;
+      background-color: #e8f5e9;
+      border-radius: 6px;
+    }
+    .order-status h2 {
+      color: #2E7D32;
+      margin: 0;
+      font-size: 20px;
+    }
+    .order-status p {
+      color: #388E3C;
+      margin: 10px 0 0;
+      font-size: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #f2f2f2;
+      font-weight: 600;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px 0;
+      font-size: 14px;
+      color: #777;
+      border-top: 1px solid #f0f0f0;
+    }
+    .button {
+      display: inline-block;
+      padding: 12px 24px;
+      background-color: #4CAF50;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: bold;
+      margin: 20px 0;
+    }
+    .summary {
+      margin-top: 20px;
+      border-top: 1px solid #ddd;
+      padding-top: 15px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+    }
+    .total {
+      font-weight: bold;
+      font-size: 18px;
+      color: #4CAF50;
+    }
+    .delivery-info {
+      background-color: #e3f2fd;
+      padding: 15px;
+      border-radius: 6px;
+      margin: 20px 0;
+    }
+    .delivery-info h3 {
+      margin-top: 0;
+      color: #1976D2;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>OptiApp</h1>
+      <p>Mise à jour de votre commande #{{orderId}}</p>
+    </div>
+    
+    <p>Bonjour {{customerName}},</p>
+    <p>Votre commande passée le {{orderDate}} a été mise à jour.</p>
+    
+    <div class="order-status">
+      <h2>Statut actuel: {{currentStatus}}</h2>
+      <p>{{statusDescription}}</p>
+    </div>
+    
+    {{{statusTracking}}}
+    
+    {{#if estimatedDelivery}}
+    <div class="delivery-info">
+      <h3>Temps de livraison estimé</h3>
+      <p>Votre commande devrait arriver dans {{estimatedDelivery}}.</p>
+      <p>Adresse de livraison: {{deliveryAddress}}</p>
+    </div>
+    {{/if}}
+    
+    <div class="order-info">
+      <h3>Détails de votre commande</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th>Qté</th>
+            <th>Prix</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each items}}
+          <tr>
+            <td>{{name}}</td>
+            <td>{{quantity}}</td>
+            <td>{{price}}</td>
+            <td>{{total}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+      
+      <div class="summary">
+        <div class="summary-row">
+          <span>Sous-total:</span>
+          <span>{{subtotal}}</span>
+        </div>
+        <div class="summary-row">
+          <span>Frais de livraison:</span>
+          <span>{{deliveryFee}}</span>
+        </div>
+        <div class="summary-row total">
+          <span>Total:</span>
+          <span>{{total}}</span>
+        </div>
+        <div class="summary-row">
+          <span>Méthode de paiement:</span>
+          <span>{{paymentMethod}}</span>
+        </div>
+      </div>
+    </div>
+    
+    <div style="text-align: center;">
+      <a href="{{appUrl}}/commandes/{{orderId}}" class="button">Voir les détails de ma commande</a>
+    </div>
+    
+    <div class="footer">
+      <p>Merci d'avoir choisi OptiApp!</p>
+      <p>Si vous avez des questions, n'hésitez pas à nous contacter.</p>
+    </div>
+  </div>
+</body>
+</html>

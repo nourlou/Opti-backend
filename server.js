@@ -53,7 +53,7 @@ app.use('/api', forgotPasswordRoutes);
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log('[${new Date().toISOString()}] ${req.method} ${req.url}');
   next();
 });
 
@@ -131,4 +131,3 @@ const PORT = 3000;
 app.listen(3000, '0.0.0.0', () => {
   console.log('Server running on http://localhost:3000');
 });
-
