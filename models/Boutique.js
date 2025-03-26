@@ -9,7 +9,7 @@ const opticienSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  ville: { // New field
+  ville: {
     type: String,
     required: true
   },
@@ -28,7 +28,13 @@ const opticienSchema = new mongoose.Schema({
   opening_hours: {
     type: String,
     required: true
-  }
+  },
+  opticien_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Optician', 
+    required: false
+  },
+
 });
 
 module.exports = mongoose.model('Opticien', opticienSchema, 'Boutique');

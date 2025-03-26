@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Opticien = require('../models/Boutique');
 
-// GET all opticians
+// GET all boutiques
 router.get('/', async (req, res) => {
   try {
     console.log('[Optician Route] Fetching opticians...');
@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST - Add a new optician
+// POST - Add a new boutiques
 router.post('/', async (req, res) => {
   try {
     console.log('[Optician Route] Creating new optician:', req.body);
@@ -106,7 +106,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE - Remove an optician
 router.delete('/:id', async (req, res) => {
   try {
     console.log(`[Optician Route] Deleting optician with id: ${req.params.id}`);
