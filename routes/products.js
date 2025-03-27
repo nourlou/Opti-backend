@@ -4,6 +4,36 @@ const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Review = require('../models/Review');
 const Model3D = require("../models/Model3D");
+
+router.get('/by-boutique/:boutiqueId', async (req, res) => {
+  try {
+    const products = await Product.find({ 
+      boutiqueId: req.params.boutiqueId 
+    }).populate('boutiqueId', 'nom');
+    
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+router.post('/by-boutiques', async (req, res) => {
+  try {
+    const { boutiqueIds } = req.body;
+    
+    // Convertir les IDs en ObjectId si nécessaire
+    const objectIdBoutiques = boutiqueIds.map(id => 
+      mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
+    );
+    
+    const products = await Product.find({ 
+      boutiqueId: { $in: objectIdBoutiques } 
+    });
+    
+    res.json(products);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
 // Obtenir tous les produits
 router.get('/', async (req, res) => {
   try {
@@ -43,7 +73,7 @@ router.get('/', async (req, res) => {
 
 router.post('/add', async (req, res) => {
   try {
-    const { name, description, category, marque, couleur, prix, quantite_stock, image, model3D, type_verre, opticienId, style } = req.body;
+    const { name, description, category, marque, couleur, prix, quantite_stock, image, model3D, type_verre, boutiqueId, style } = req.body;
 
     // Create product object with basic properties
     const productData = {
@@ -59,17 +89,17 @@ router.post('/add', async (req, res) => {
       style,
     };
 
-    // Handle opticienId
-    if (opticienId === "current_optician_id" || opticienId === "") {
+    // Handle boutiqueId
+    if (boutiqueId === "current_optician_id" || boutiqueId === "") {
       const DEV_OPTICIAN_ID = process.env.DEV_OPTICIAN_ID || "507f1f77bcf86cd799439011";
       console.log(`Using development optician ID: ${DEV_OPTICIAN_ID}`);
-      productData.opticienId = new mongoose.Types.ObjectId(DEV_OPTICIAN_ID);
-    } else if (mongoose.Types.ObjectId.isValid(opticienId)) {
-      productData.opticienId = new mongoose.Types.ObjectId(opticienId);
+      productData.boutiqueId = new mongoose.Types.ObjectId(DEV_OPTICIAN_ID);
+    } else if (mongoose.Types.ObjectId.isValid(boutiqueId)) {
+      productData.boutiqueId = new mongoose.Types.ObjectId(boutiqueId);
     } else {
       return res.status(400).json({ 
-        message: "Invalid opticienId format. Must be a valid MongoDB ObjectId",
-        providedId: opticienId
+        message: "Invalid boutiqueId format. Must be a valid MongoDB ObjectId",
+        providedId: boutiqueId
       });
     }
 

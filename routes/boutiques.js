@@ -26,7 +26,6 @@ router.get('/', async (req, res) => {
     });
   }
 });
-// routes/boutiques.js
 router.get('/by-opticien/:opticienId', async (req, res) => {
   try {
     const boutiques = await Opticien.find({

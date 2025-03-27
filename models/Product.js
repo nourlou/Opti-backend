@@ -20,7 +20,7 @@ const productSchema = new mongoose.Schema({
   
   type_verre: { type: String, required: true },
   style: { type: String },
-  opticienId: {
+  boutiqueId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Opticien',
     required: true,
