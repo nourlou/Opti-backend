@@ -30,8 +30,8 @@ const opticienSchema = new mongoose.Schema({
     required: true
   },
   opticien_id: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Optician', 
+    type: mongoose.Schema.Types.Mixed, // Accepte à la fois String et ObjectId
+    ref: 'Optician',
     required: false
   },
 

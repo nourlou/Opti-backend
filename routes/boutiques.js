@@ -1,3 +1,4 @@
+const mongoose = require('mongoose'); 
 const express = require('express');
 const router = express.Router();
 const Opticien = require('../models/Boutique');
@@ -28,39 +29,23 @@ router.get('/', async (req, res) => {
 // routes/boutiques.js
 router.get('/by-opticien/:opticienId', async (req, res) => {
   try {
-    console.log(`🔍 Fetching boutiques for opticien: ${req.params.opticienId}`);
-    
-    // Solution 1: Si opticien_id est stocké comme string
-    const boutiques = await Opticien.find({ opticien_id: req.params.opticienId });
-    
-    // Solution 2: Si opticien_id est un ObjectId
-    // const boutiques = await Opticien.find({ 
-    //   opticien_id: mongoose.Types.ObjectId(req.params.opticienId) 
-    // });
-    
-    console.log(`✅ Found ${boutiques.length} boutiques`);
-    
-    // Transformez les résultats pour avoir un format cohérent
-    const result = boutiques.map(b => ({
-      _id: b._id,
-      nom: b.nom,
-      adresse: b.adresse,
-      ville: b.ville,
-      phone: b.phone,
-      email: b.email,
-      description: b.description,
-      opening_hours: b.opening_hours,
-      opticien_id: b.opticien_id?.toString(), // Convertit en string si c'est un ObjectId
-      __v: b.__v
+    const boutiques = await Opticien.find({
+      $or: [
+        { opticien_id: req.params.opticienId },
+        { opticien_id: new mongoose.Types.ObjectId(req.params.opticienId) }
+      ]
+    }).lean();
+
+    // Formatage cohérent des IDs
+    const response = boutiques.map(b => ({
+      ...b,
+      _id: b._id.toString(),
+      opticien_id: b.opticien_id?.toString()
     }));
-    
-    res.status(200).json(result);
+
+    res.status(200).json(response);
   } catch (error) {
-    console.error('❌ Error:', error);
-    res.status(500).json({ 
-      message: 'Error fetching boutiques',
-      error: error.message 
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 // POST - Add a new boutiques
