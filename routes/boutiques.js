@@ -1,8 +1,9 @@
+const mongoose = require('mongoose'); 
 const express = require('express');
 const router = express.Router();
 const Opticien = require('../models/Boutique');
 
-// GET all opticians
+// GET all boutiques
 router.get('/', async (req, res) => {
   try {
     console.log('[Optician Route] Fetching opticians...');
@@ -25,8 +26,28 @@ router.get('/', async (req, res) => {
     });
   }
 });
+router.get('/by-opticien/:opticienId', async (req, res) => {
+  try {
+    const boutiques = await Opticien.find({
+      $or: [
+        { opticien_id: req.params.opticienId },
+        { opticien_id: new mongoose.Types.ObjectId(req.params.opticienId) }
+      ]
+    }).lean();
 
-// POST - Add a new optician
+    // Formatage cohérent des IDs
+    const response = boutiques.map(b => ({
+      ...b,
+      _id: b._id.toString(),
+      opticien_id: b.opticien_id?.toString()
+    }));
+
+    res.status(200).json(response);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// POST - Add a new boutiques
 router.post('/', async (req, res) => {
   try {
     console.log('[Optician Route] Creating new optician:', req.body);
@@ -106,7 +127,6 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE - Remove an optician
 router.delete('/:id', async (req, res) => {
   try {
     console.log(`[Optician Route] Deleting optician with id: ${req.params.id}`);

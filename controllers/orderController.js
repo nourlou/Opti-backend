@@ -8,6 +8,7 @@ const path = require('path');
 const handlebars = require('handlebars');
 const Opticien = require('../models/Boutique');
 
+
 const transporter = nodemailer.createTransport({
   service: 'gmail', // Ou un autre service comme 'outlook', 'yahoo', etc.
   auth: {
@@ -36,6 +37,33 @@ const generateStatusTracking = (currentStatus) => {
   
   trackingHTML += '</div>';
   return trackingHTML;
+};
+exports.getOrdersByOptician = async (req, res) => {
+  try {
+    const { opticianId } = req.params;
+    
+    // 1. Get boutiques for this optician
+    const boutiques = await Boutique.find({ opticien_id: opticianId });
+    const boutiqueIds = boutiques.map(b => b._id);
+    
+    // 2. Find orders containing items from these boutiques
+    const orders = await Order.find({ 
+      'items.boutiqueId': { $in: boutiqueIds } 
+    }).populate('items.productId'); // Optionnel: peupler les produits si nécessaire
+    
+    res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders
+    });
+  } catch (error) {
+    console.error('Error fetching orders by optician:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
 };
 // Créer une nouvelle commande
 exports.deleteOrder = async (req, res) => {

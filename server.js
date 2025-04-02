@@ -12,6 +12,7 @@ const userRoutes = require('./routes/user');
 const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const uploadModelsRouter = require('./routes/uploadModels');
 
 const opticianRoutes = require('./routes/opticianRoutes');
 
@@ -27,6 +28,8 @@ app.use('/api/cart',require("./routes/cart_item"));
 app.use('/api', userRoutes);
 
 app.use('/api', opticianRoutes);
+
+app.use('/upload-model', uploadModelsRouter);
 
 app.use('/orders', orderRoutes);
 // Configuration du dossier des images

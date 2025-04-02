@@ -1,3 +1,5 @@
+// Modifiez votre fichier models/Product.js pour uniformiser la gestion des modèles 3D
+
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
@@ -9,13 +11,26 @@ const productSchema = new mongoose.Schema({
   prix: { type: Number, required: true },
   quantite_stock: { type: Number, required: true },
   image: { type: String },
+  
+  // Définir model3D comme une référence vers Model3D OU comme un String
+  model3D: {
+    type: mongoose.Schema.Types.Mixed, // Permet de stocker soit un ObjectId, soit une chaîne
+    default: null,
+  },
+  
   type_verre: { type: String, required: true },
-  style: { type: String, required: true }, // Champ ajouté pour décrire le style ou la silhouette de la lunette
-  opticienId: {
+  style: { type: String },
+  boutiqueId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Opticien',
-    required: true
+    required: true,
   },
+  
+  // Ajout d'un boolean pour indiquer si model3D est un ID ou une URL
+  isModel3DObjectId: {
+    type: Boolean,
+    default: false
+  }
 });
 
 const Product = mongoose.model('Product', productSchema);

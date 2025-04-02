@@ -19,4 +19,7 @@ router.delete('/:id', orderController.cancelOrder);
 
 router.get('/', orderController.getAllOrders);
 router.delete('/:id/delete', orderController.deleteOrder);
+
+router.get('/by-optician/:opticianId', orderController.getOrdersByOptician);
+
 module.exports = router;
