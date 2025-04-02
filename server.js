@@ -73,6 +73,9 @@ app.use('/auth', require('./routes/googleAuth'));
 app.use('/auth', require('./routes/facebookAuth'));
 app.use('/api', require('./routes/reviewRoutes'));
 
+//recommendation
+app.use('/api', require('./routes/recommendation'));
+
 
 //
 dotenv.config(); // Load environment variables
@@ -107,7 +110,7 @@ mongoose.connection.on('error', (err) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://192.168.1.22:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 

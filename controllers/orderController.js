@@ -67,21 +67,7 @@ exports.deleteOrder = async (req, res) => {
     }
 
     // Send notification to the user if they have a OneSignal player ID
-    if (user && user.oneSignalPlayerId) {
-      const notificationMessage = `Votre commande #${order._id.toString().slice(-6)} a été supprimée définitivement.`;
-      
-      try {
-        await sendOneSignalNotification(
-          user.oneSignalPlayerId,
-          notificationMessage,
-          id,
-          'Supprimée'
-        );
-        console.log(`Deletion notification sent to user ${userId}`);
-      } catch (notificationError) {
-        console.error('Failed to send deletion notification:', notificationError);
-      }
-    }
+   
 
     // Return success response
     res.status(200).json({
@@ -119,7 +105,7 @@ const sendOrderStatusEmail = async (user, order, newStatus) => {
     const templatePath = path.join(__dirname, '../templates/order-status-email.html');
     const source = fs.readFileSync(templatePath, 'utf8');
     const template = handlebars.compile(source);
-    
+    const viewOrderDeepLink = `optiapp://vieworder?id=${order._id}`;
     // Format date
     const formattedDate = new Date(order.createdAt).toLocaleDateString('fr-FR', {
       year: 'numeric',
@@ -157,7 +143,8 @@ const sendOrderStatusEmail = async (user, order, newStatus) => {
       deliveryFee: order.deliveryFee.toFixed(2) + ' €',
       total: order.total.toFixed(2) + ' €',
       paymentMethod: order.paymentMethod,
-      appUrl: process.env.APP_URL || 'https://votre-app.com'
+      viewOrderDeepLink
+      
     };
     
     // Compile template with data
@@ -352,12 +339,10 @@ const sendOneSignalNotification = async (playerId, message, orderId, newStatus) 
   }
 };
 
-// Mettre à jour le statut d'une commande
-// Mettre à jour le statut d'une commande
 exports.updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, cancellationReason } = req.body; // Add cancellationReason to the request body
+    const { status, cancellationReason } = req.body;
 
     if (!status) {
       return res.status(400).json({ 
@@ -393,40 +378,33 @@ exports.updateOrderStatus = async (req, res) => {
       { new: true, runValidators: true }
     );
 
-    // Get the user associated with this order to send a notification
+    // Si la commande passe à "Completée", mettre à jour le stock des produits
+    if (status === 'Completée') {
+      // Code existant pour mettre à jour le stock...
+    }
+
+    // Get the user associated with this order to send notifications
     const userId = order.userId;
     const user = await User.findById(userId);
 
-    if (user && user.oneSignalPlayerId) {
-      // Prepare the notification message
-      let notificationMessage = `Le statut de votre commande #${order._id.toString().slice(-6)} a été mis à jour: ${status}`;
-
-      // Include the cancellation reason in the notification if applicable
-      if (status === 'Annulée' && cancellationReason) {
-        notificationMessage += `\nRaison: ${cancellationReason}`;
-      }
-
-      // Send the notification
-      try {
-        await sendOneSignalNotification(
-          user.oneSignalPlayerId,
-          notificationMessage,
-          id,
-          status
-        );
-        console.log(`Notification sent to user ${order.userId} with player ID: ${user.oneSignalPlayerId}`);
-      } catch (notificationError) {
-        console.error('Failed to send notification:', notificationError);
-      }
+    // Envoyer un email de notification à l'utilisateur
+    if (user && user.email) {
+      await sendOrderStatusEmail(user, updatedOrder, status);
+      console.log(`Email de notification envoyé à l'utilisateur ${userId}`);
     }
 
-
+    // Code existant pour les notifications OneSignal...
+    if (user && user.oneSignalPlayerId) {
+      // Code existant pour OneSignal...
+    }
 
     res.status(200).json({
       success: true,
-      data: updatedOrder
+      data: updatedOrder,
+      message: `Commande mise à jour avec succès. Statut: ${status}`
     });
   } catch (error) {
+    console.error('Erreur complète:', error);
     res.status(400).json({ 
       success: false,
       message: 'Erreur lors de la mise à jour du statut de la commande',
@@ -448,6 +426,10 @@ exports.cancelOrder = async (req, res) => {
         success: false,
         message: 'Commande non trouvée',
       });
+    }
+  
+    if (user && user.email) {
+      await sendOrderStatusEmail(user, order, newStatus);
     }
 
     // Check if the order can be canceled

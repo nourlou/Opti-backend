@@ -8,13 +8,14 @@ const productSchema = new mongoose.Schema({
   couleur: { type: String, required: true },
   prix: { type: Number, required: true },
   quantite_stock: { type: Number, required: true },
-  image: { type: String},
+  image: { type: String },
   type_verre: { type: String, required: true },
+  style: { type: String, required: true }, // Champ ajouté pour décrire le style ou la silhouette de la lunette
   opticienId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Opticien',
     required: true
-  },  
+  },
 });
 
 const Product = mongoose.model('Product', productSchema);

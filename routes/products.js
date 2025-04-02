@@ -53,6 +53,7 @@ router.post('/add', async (req, res) => {
     image: req.body.image,
     type_verre: req.body.type_verre,
     opticienId: req.body.opticienId,
+    style: req.body.style, // New style field
   });
 
   try {
