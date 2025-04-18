@@ -6,6 +6,21 @@ const jwt = require('jsonwebtoken');
 const { sendWelcomeEmail } = require('../services/emailService'); // Import the email service
 const JWT_SECRET = process.env.JWT_SECRET || 'your_fallback_secret_key'; // Utilisez une variable d'environnement en production
 
+// Dans userRoutes.js
+router.post('/users/by-ids', async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    const users = await User.find({ _id: { $in: userIds } });
+    res.status(200).json(users);
+  } catch (err) {
+    console.error('Error fetching users by IDs:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Error fetching users by IDs', 
+      error: err.message 
+    });
+  }
+});
 // Get all users
 router.get('/users', async (req, res) => {
   try {

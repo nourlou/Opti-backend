@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt'); // Add this missing import
 const { sendWelcomeEmail } = require('../services/emailService'); // Import the email service
 const JWT_SECRET = process.env.JWT_SECRET || 'your_fallback_secret_key'; // Utilisez une variable d'environnement en production
+const nodemailer = require('nodemailer');
 
 // Create the "images" directory if it doesn't exist
 const imagesDir = path.join(__dirname, "../images");
@@ -29,6 +30,170 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
+
+// Email configuration (same as your provided transporter)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'yosrbencheikh28@gmail.com',
+    pass: 'xqzc yhwk kdvi pmdy',
+  },
+});
+
+// Verify email configuration
+transporter.verify((error, success) => {
+  if (error) {
+    console.log('Error in email transporter configuration:', error);
+  } else {
+    console.log('Email transporter is ready to send emails');
+  }
+});
+
+// Temporary storage for reset codes
+const resetCodes = new Map();
+
+// Generate random 6-digit code
+function generateResetCode() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Send password reset code
+router.post('/send-reset-code', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validate email
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Check if optician exists
+    const optician = await Optician.findOne({ email });
+    if (!optician) {
+      return res.status(404).json({ message: 'Optician not found' });
+    }
+
+    // Generate and store reset code (valid for 15 minutes)
+    const code = generateResetCode();
+    resetCodes.set(email, {
+      code,
+      expiresAt: Date.now() + 15 * 60 * 1000 // 15 minutes expiration
+    });
+
+    // Send email with reset code
+    const mailOptions = {
+      from: 'yosrbencheikh28@gmail.com',
+      to: email,
+      subject: 'Code de réinitialisation de mot de passe',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 5px;">
+          <h2 style="color: #1E5F74;">Réinitialisation de mot de passe</h2>
+          <p>Vous avez demandé une réinitialisation de mot de passe. Voici votre code de vérification :</p>
+          <div style="background-color: #f5f5f5; padding: 10px; text-align: center; font-size: 24px; letter-spacing: 5px; margin: 15px 0; color: #1E5F74;">
+            <strong>${code}</strong>
+          </div>
+          <p>Ce code expirera dans 15 minutes.</p>
+          <p>Si vous n'avez pas demandé cette réinitialisation, veuillez ignorer cet email.</p>
+          <p style="margin-top: 30px; color: #666;">L'équipe OptiVision Pro</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ message: 'Reset code sent successfully' });
+
+  } catch (error) {
+    console.error('Error sending reset code:', error);
+    res.status(500).json({ message: 'Error sending reset code', error: error.message });
+  }
+});
+
+// Verify reset code
+router.post('/verify-reset-code', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    // Validate inputs
+    if (!email || !code) {
+      return res.status(400).json({ message: 'Email and code are required' });
+    }
+
+    // Check if code exists for this email
+    const storedCode = resetCodes.get(email);
+    if (!storedCode) {
+      return res.status(400).json({ message: 'No reset code found for this email' });
+    }
+
+    // Check if code is expired
+    if (Date.now() > storedCode.expiresAt) {
+      resetCodes.delete(email);
+      return res.status(400).json({ message: 'Reset code has expired' });
+    }
+
+    // Verify code matches
+    if (storedCode.code !== code) {
+      return res.status(400).json({ message: 'Invalid reset code' });
+    }
+
+    res.status(200).json({ valid: true, message: 'Code verified successfully' });
+
+  } catch (error) {
+    console.error('Error verifying reset code:', error);
+    res.status(500).json({ message: 'Error verifying reset code', error: error.message });
+  }
+});
+
+// Reset password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    // Validate inputs
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: 'Email, code, and new password are required' });
+    }
+
+    // Check if code exists for this email
+    const storedCode = resetCodes.get(email);
+    if (!storedCode) {
+      return res.status(400).json({ message: 'No reset code found for this email' });
+    }
+
+    // Check if code is expired
+    if (Date.now() > storedCode.expiresAt) {
+      resetCodes.delete(email);
+      return res.status(400).json({ message: 'Reset code has expired' });
+    }
+
+    // Verify code matches
+    if (storedCode.code !== code) {
+      return res.status(400).json({ message: 'Invalid reset code' });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update optician's password
+    const optician = await Optician.findOneAndUpdate(
+      { email },
+      { password: hashedPassword },
+      { new: true }
+    );
+
+    if (!optician) {
+      return res.status(404).json({ message: 'Optician not found' });
+    }
+
+    // Remove used reset code
+    resetCodes.delete(email);
+
+    res.status(200).json({ message: 'Password reset successfully' });
+
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({ message: 'Error resetting password', error: error.message });
+  }
+});
 
 // Route for uploading optician image
 router.post("/upload-optician-image", upload.single("image"), async (req, res) => {
