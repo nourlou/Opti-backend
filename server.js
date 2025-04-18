@@ -75,6 +75,7 @@ app.use('/api/wishlist', require('./routes/wishlist'));
 app.use('/auth', require('./routes/googleAuth'));
 app.use('/auth', require('./routes/facebookAuth'));
 app.use('/api', require('./routes/reviewRoutes'));
+app.use('/api', require('./routes/storeReview'));
 
 //recommendation
 app.use('/api', require('./routes/recommendation'));
@@ -82,7 +83,10 @@ app.use('/api', require('./routes/recommendation'));
 
 //
 dotenv.config(); // Load environment variables
+const storeWishlistRoutes = require('./routes/storeWishlist');
 
+// Add this line with your other app.use statements
+app.use('/api', storeWishlistRoutes);
 // Import the User model
 const User = require('./models/User');
 
@@ -113,7 +117,7 @@ mongoose.connection.on('error', (err) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://localhost:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://192.168.0.104:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 

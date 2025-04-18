@@ -224,7 +224,7 @@ exports.createOrder = async (req, res) => {
         quantity: item.quantity,
         unitPrice: product.prix,
         totalPrice: totalPrice,
-        opticienId: product.opticienId 
+        opticienId: product.boutiqueId
       });
     }
     

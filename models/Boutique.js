@@ -34,7 +34,15 @@ const opticienSchema = new mongoose.Schema({
     ref: 'Optician',
     required: false
   },
+  averageRating: { 
+    type: Number, 
+    default: 0 
+  },
+  totalReviews: { 
+    type: Number, 
+    default: 0 
+  }
 
 });
 
-module.exports = mongoose.model('Opticien', opticienSchema, 'Boutique');
+module.exports = mongoose.model('Boutique', opticienSchema, 'Boutique');

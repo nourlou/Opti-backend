@@ -1,5 +1,6 @@
 const express = require('express');
 const Review = require('../models/Review');
+const Product = require('../models/Product');
 const axios = require('axios');
 
 const router = express.Router();
@@ -67,6 +68,23 @@ router.post('/reviews', async (req, res) => {
 
         const newReview = new Review({ productId, userId, reviewText, rating });
         await newReview.save();
+        const savedReview = await newReview.save();
+    
+        // Calculate new rating statistics
+        const reviews = await Review.find({ productId });
+        const totalReviews = reviews.length;
+        let averageRating = 0;
+        
+        if (totalReviews > 0) {
+          const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+          averageRating = sum / totalReviews;
+        }
+        
+        // Update product with new rating data
+        await Product.findByIdAndUpdate(productId, {
+          averageRating,
+          totalReviews
+        });
         res.status(201).json(newReview);
     } catch (error) {
         console.error('Review submission error:', error);
@@ -87,28 +105,44 @@ router.get('/reviews/:productId', async (req, res) => {
   });
   router.delete('/reviews/:reviewId', async (req, res) => {
     const { reviewId } = req.params;
-    const { userId } = req.body;  // Assuming userId is sent in the body to check ownership
-  
+    const { userId } = req.body;
+
     try {
-      const review = await Review.findById(reviewId);
-  
-      if (!review) {
-        return res.status(404).json({ error: 'Review not found' });
-      }
-  
-      // Check if the user requesting the deletion is the one who created the review
-      if (review.userId.toString() !== userId) {
-        return res.status(403).json({ error: 'You are not authorized to delete this review' });
-      }
-  
-      // Delete the review using deleteOne() instead of remove()
-      await review.deleteOne();
-      res.status(200).json({ message: 'Review deleted successfully' });
+        const review = await Review.findById(reviewId);
+
+        if (!review) {
+            return res.status(404).json({ error: 'Review not found' });
+        }
+
+        if (review.userId.toString() !== userId) {
+            return res.status(403).json({ error: 'Not authorized' });
+        }
+
+        // Store product ID before deletion
+        const productId = review.productId;
+
+        await review.deleteOne();
+
+        // Recalculate ratings using the stored productId
+        const remainingReviews = await Review.find({ productId });
+        const totalReviews = remainingReviews.length;
+        let averageRating = 0;
+        
+        if (totalReviews > 0) {
+            const sum = remainingReviews.reduce((acc, review) => acc + review.rating, 0);
+            averageRating = sum / totalReviews;
+        }
+        
+        await Product.findByIdAndUpdate(productId, {
+            averageRating,
+            totalReviews
+        });
+        
+        res.status(200).json({ message: 'Review deleted successfully' });
     } catch (error) {
-      console.error('Review deletion error:', error);
-      res.status(500).json({ error: 'Failed to delete review' });
+        console.error('Review deletion error:', error);
+        res.status(500).json({ error: 'Failed to delete review' });
     }
-  });
-  
+});
 
 module.exports = router;

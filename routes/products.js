@@ -16,6 +16,7 @@ router.get('/by-boutique/:boutiqueId', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
 router.post('/by-boutiques', async (req, res) => {
   try {
     const { boutiqueIds } = req.body;
@@ -34,6 +35,7 @@ router.post('/by-boutiques', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
 // Obtenir tous les produits
 router.get('/', async (req, res) => {
   try {
@@ -69,13 +71,12 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Mettre à jour la route d'ajout de produit dans routes/products.js
-
+// Mettre à jour la route d'ajout de produit pour enregistrer aussi les évaluations
 router.post('/add', async (req, res) => {
   try {
     const { name, description, category, marque, couleur, prix, quantite_stock, image, model3D, type_verre, boutiqueId, style } = req.body;
 
-    // Create product object with basic properties
+    // Créer l'objet produit avec les propriétés de base et les valeurs par défaut pour les évaluations
     const productData = {
       name,
       description,
@@ -87,6 +88,9 @@ router.post('/add', async (req, res) => {
       image,
       type_verre,
       style,
+      // Initialiser les champs de notation à 0
+      averageRating: 0.0,
+      totalReviews: 0
     };
 
     // Handle boutiqueId
@@ -154,6 +158,7 @@ router.post('/add', async (req, res) => {
     });
   }
 });
+
 // Helper function to extract model ID from path or URL
 async function getModelIdFromPath(modelPath) {
   if (!modelPath || modelPath.trim() === '') {
@@ -162,7 +167,7 @@ async function getModelIdFromPath(modelPath) {
   
   // If it's already a valid ObjectId string, return it as ObjectId
   if (mongoose.Types.ObjectId.isValid(modelPath)) {
-    return new mongoose.Types.ObjectId(modelPath); // Changed here - add 'new'
+    return new mongoose.Types.ObjectId(modelPath);
   }
   
   // Extract the filename from the path or URL
@@ -185,6 +190,7 @@ async function getModelIdFromPath(modelPath) {
     return null;
   }
 }
+
 // Mettre à jour un produit avec support pour model3D
 router.put('/:id', async (req, res) => {
   try {
@@ -202,7 +208,7 @@ router.put('/:id', async (req, res) => {
         // Extraire le nom du fichier à partir du chemin
         const fileName = newModel3D.split('/').pop();
         
-        // Mettre à jour le produitId dans la collection model3D
+        // Mettre à jour le productId dans la collection model3D
         await Model3D.updateOne(
           { filePath: `/models/${fileName}` },
           { productId: updatedProduct._id.toString() }
@@ -225,7 +231,7 @@ router.delete('/:id', async (req, res) => {
     
     if (product) {
       // Si le produit a un modèle 3D, le supprimer également
-      if (product.model3D && product.model3D.trim() !== '') {
+      if (product.model3D && typeof product.model3D === 'string' && product.model3D.trim() !== '') {
         // Extraire le nom du fichier
         const fileName = product.model3D.split('/').pop();
         
@@ -244,7 +250,6 @@ router.delete('/:id', async (req, res) => {
           }
         } catch (modelError) {
           console.error('Erreur lors de la suppression du modèle 3D:', modelError);
-          // Ne pas bloquer la suppression du produit si la suppression du modèle échoue
         }
       }
       
@@ -273,26 +278,20 @@ router.get('/with-3d-model', async (req, res) => {
 });
 
 // Obtenir les détails d'un modèle 3D spécifique
-// Ajoutez cette route à votre fichier routes/products.js
-
-// Route pour obtenir l'URL d'un modèle 3D à partir de son ID
 router.get('/model3d-url/:modelId', async (req, res) => {
   try {
     const modelId = req.params.modelId;
     
-    // Vérifier si l'ID est un ObjectId valide
     if (!mongoose.Types.ObjectId.isValid(modelId)) {
       return res.status(400).json({ message: 'ID de modèle invalide' });
     }
     
-    // Rechercher le modèle 3D par son ID
     const model3D = await Model3D.findById(modelId);
     
     if (!model3D) {
       return res.status(404).json({ message: 'Modèle 3D non trouvé' });
     }
     
-    // Renvoyer le chemin du fichier
     res.json({
       filePath: model3D.filePath,
       fileName: model3D.fileName,
@@ -313,23 +312,19 @@ router.post('/associate-model3d', async (req, res) => {
       return res.status(400).json({ message: 'productId et model3DId sont requis' });
     }
     
-    // Vérifier que le produit existe
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: 'Produit non trouvé' });
     }
     
-    // Vérifier que le modèle 3D existe
     const model3D = await Model3D.findById(model3DId);
     if (!model3D) {
       return res.status(404).json({ message: 'Modèle 3D non trouvé' });
     }
     
-    // Mettre à jour le produit avec le chemin du modèle 3D
     product.model3D = model3D.filePath;
     await product.save();
     
-    // Mettre à jour le modèle 3D avec l'ID du produit
     model3D.productId = productId;
     await model3D.save();
     
@@ -346,6 +341,7 @@ router.post('/associate-model3d', async (req, res) => {
   }
 });
 
+// Obtenir les évaluations d'un produit
 router.get('/ratings/:productId', async (req, res) => {
   try {
     const productId = req.params.productId;
@@ -355,43 +351,58 @@ router.get('/ratings/:productId', async (req, res) => {
       {
         $lookup: {
           from: 'reviews',
-          localField: '_id',
-          foreignField: 'productId',
+          let: { productId: '$_id' },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    { $toString: '$productId' },
+                    { $toString: '$$productId' }
+                  ]
+                }
+              }
+            }
+          ],
           as: 'reviews'
         }
       },
       {
         $addFields: {
-          averageRating: { $ifNull: [{ $avg: '$reviews.rating' }, 0] },
+          averageRating: { $round: [{ $avg: '$reviews.rating' }, 1] },
           totalReviews: { $size: '$reviews' }
         }
       },
       {
         $project: {
           averageRating: 1,
-          totalReviews: 1,
-          reviews: 1
+          totalReviews: 1
         }
       }
     ]);
 
+    console.log('Updated aggregation result:', ratingData);
+
     if (ratingData.length > 0) {
-      res.json({
-        averageRating: ratingData[0].averageRating,
-        totalReviews: ratingData[0].totalReviews
-      });
+      res.json(ratingData[0]);
     } else {
-      res.json({
+      res.status(404).json({ 
+        message: 'Product not found',
         averageRating: 0,
         totalReviews: 0
       });
     }
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    console.error('Rating error:', error);
+    res.status(500).json({ 
+      message: error.message,
+      averageRating: 0,
+      totalReviews: 0
+    });
   }
 });
 
-// Get detailed reviews for a product
+// Obtenir les avis détaillés pour un produit
 router.get('/reviews/:productId', async (req, res) => {
   try {
     const productId = req.params.productId;
@@ -406,7 +417,7 @@ router.get('/reviews/:productId', async (req, res) => {
   }
 });
 
-// Add a new review
+// Ajouter un nouvel avis et mettre à jour la notation du produit
 router.post('/reviews/add', async (req, res) => {
   try {
     const { productId, userId, rating, comment } = req.body;
@@ -421,17 +432,52 @@ router.post('/reviews/add', async (req, res) => {
 
     const savedReview = await newReview.save();
 
-    // Recalculate and update product's average rating
+    // Recalculate the average rating and update total reviews
     const reviews = await Review.find({ productId });
-    const averageRating = reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
+    const totalReviews = reviews.length;
+    const averageRating = totalReviews > 0 
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / totalReviews 
+      : 0;
 
     await Product.findByIdAndUpdate(productId, { 
-      averageRating: averageRating 
+      averageRating: averageRating,
+      totalReviews: totalReviews
     });
 
     res.status(201).json(savedReview);
   } catch (error) {
     res.status(400).json({ message: error.message });
+  }
+});
+// Add this endpoint to your products routes file
+
+// PUT endpoint to update product ratings directly
+router.put('/:id/ratings', async (req, res) => {
+  try {
+    const { averageRating, totalReviews } = req.body;
+    const productId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'Invalid product ID format' });
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      { 
+        averageRating: averageRating,
+        totalReviews: totalReviews 
+      },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    res.status(200).json(updatedProduct);
+  } catch (error) {
+    console.error('Error updating product ratings:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

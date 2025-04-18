@@ -7,7 +7,10 @@ const productSchema = new mongoose.Schema({
   description: { type: String, required: true },
   category: { type: String, required: true },
   marque: { type: String, required: true },
-  couleur: { type: String, required: true },
+  couleur: { 
+    type: [String], 
+    required: true 
+  },
   prix: { type: Number, required: true },
   quantite_stock: { type: Number, required: true },
   image: { type: String },
@@ -25,11 +28,28 @@ const productSchema = new mongoose.Schema({
     ref: 'Opticien',
     required: true,
   },
+  materiel: { 
+    type: String,
+    default: ""
+  },
+  sexe: {
+    type: String,
+    enum: ['feminin', 'masculin', 'unisexe'], // Contrôle des valeurs possibles
+    default: "unisexe"
+  },
   
   // Ajout d'un boolean pour indiquer si model3D est un ID ou une URL
   isModel3DObjectId: {
     type: Boolean,
     default: false
+  },
+  averageRating: { 
+    type: Number, 
+    default: null 
+  },
+  totalReviews: { 
+    type: Number, 
+    default: null 
   }
 });
 
