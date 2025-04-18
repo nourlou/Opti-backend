@@ -26,7 +26,27 @@ app.use("/images", express.static(path.join(__dirname, "images")));
 app.use('/api/cart',require("./routes/cart_item"));
 
 app.use('/api', userRoutes);
-
+// Dans votre fichier app.js ou index.js
+// Dans votre serveur Node.js
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+  res.header('Cross-Origin-Embedder-Policy', 'require-corp');
+  res.header('Cross-Origin-Opener-Policy', 'same-origin');
+  next();
+});
+// Servir les fichiers statiques du dossier models
+app.use('/models', express.static(path.join(__dirname, 'models'), {
+  setHeaders: (res, path) => {
+    if (path.endsWith('.gltf')) {
+      res.set('Content-Type', 'model/gltf+json');
+    } else if (path.endsWith('.glb')) {
+      res.set('Content-Type', 'model/gltf-binary');
+    }
+  }
+}));
+app.use('/models', express.static(path.join(__dirname, '3DModels')));
 app.use('/api', opticianRoutes);
 
 app.use('/upload-model', uploadModelsRouter);
@@ -55,10 +75,8 @@ app.use("/api/products", productRoutes);
 app.use('/api', forgotPasswordRoutes);
 
 // Logging middleware
-app.use((req, res, next) => {
-  console.log('[${new Date().toISOString()}] ${req.method} ${req.url}');
-  next();
-});
+
+
 
 // Upload route
 app.use("/api/upload", require("./routes/upload"));
