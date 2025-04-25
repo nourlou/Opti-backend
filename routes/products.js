@@ -74,7 +74,7 @@ router.get('/', async (req, res) => {
 // Mettre à jour la route d'ajout de produit pour enregistrer aussi les évaluations
 router.post('/add', async (req, res) => {
   try {
-    const { name, description, category, marque, couleur, prix, quantite_stock, image, model3D, type_verre, boutiqueId, style } = req.body;
+    const { name, description,  materiel, category, marque,sexe, couleur, prix, quantite_stock, image, model3D, type_verre, boutiqueId, style } = req.body;
 
     // Créer l'objet produit avec les propriétés de base et les valeurs par défaut pour les évaluations
     const productData = {
@@ -87,7 +87,9 @@ router.post('/add', async (req, res) => {
       quantite_stock,
       image,
       type_verre,
+      materiel,
       style,
+      sexe,
       // Initialiser les champs de notation à 0
       averageRating: 0.0,
       totalReviews: 0

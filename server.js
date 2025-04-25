@@ -135,7 +135,7 @@ mongoose.connection.on('error', (err) => {
 
 // CORS Configuration
 app.use(cors({
-  origin: 'http://192.168.0.104:3000',  // Allow requests from this origin (adjust if needed)
+  origin: 'http://192.168.1.19:3000',  // Allow requests from this origin (adjust if needed)
   methods: ['GET', 'POST', 'PUT', 'DELETE'],}
 ));
 
@@ -151,6 +151,8 @@ app.use(session({
 // Middleware setup
 app.use(cors({
   resave: false, 
+  
+
   saveUninitialized: true 
 }));
 

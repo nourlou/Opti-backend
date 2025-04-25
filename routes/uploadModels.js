@@ -83,5 +83,91 @@ router.post("/", upload.single("file"), async (req, res) => {
     res.status(500).json({ error: error.message || "Internal server error" });
   }
 });
+// Add this route to your uploadModels.js file
+
+// Route pour récupérer tous les modèles 3D
+router.get("/", async (req, res) => {
+  try {
+    // Récupérer tous les modèles de la base de données
+    const models = await Model3D.find().sort({ uploadDate: -1 });
+    
+    // Ajouter les URLs complètes pour chaque modèle
+    const modelsWithUrls = models.map(model => {
+      const modelUrl = `${req.protocol}://${req.get("host")}${model.filePath}`;
+      return {
+        ...model.toObject(),
+        fullUrl: modelUrl
+      };
+    });
+    
+    res.status(200).json({
+      message: "Models retrieved successfully",
+      models: modelsWithUrls
+    });
+  } catch (error) {
+    console.error('Error retrieving models:', error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+// Route pour récupérer un modèle spécifique par ID
+router.get("/:id", async (req, res) => {
+  try {
+    const modelId = req.params.id;
+    
+    // Récupérer le modèle par ID
+    const model = await Model3D.findById(modelId);
+    
+    if (!model) {
+      return res.status(404).json({ message: "Model not found" });
+    }
+    
+    // Générer l'URL complète
+    const modelUrl = `${req.protocol}://${req.get("host")}${model.filePath}`;
+    
+    res.status(200).json({
+      message: "Model retrieved successfully",
+      model: {
+        ...model.toObject(),
+        fullUrl: modelUrl
+      }
+    });
+  } catch (error) {
+    console.error('Error retrieving model:', error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
+
+// Route pour supprimer un modèle par ID
+router.delete("/:id", async (req, res) => {
+  try {
+    const modelId = req.params.id;
+    
+    // Récupérer le modèle avant de le supprimer
+    const model = await Model3D.findById(modelId);
+    
+    if (!model) {
+      return res.status(404).json({ message: "Model not found" });
+    }
+    
+    // Chemin du fichier physique
+    const filePath = path.join(modelsDir, path.basename(model.filePath));
+    
+    // Supprimer le fichier physique
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    
+    // Supprimer l'entrée de la base de données
+    await Model3D.findByIdAndDelete(modelId);
+    
+    res.status(200).json({
+      message: "Model deleted successfully"
+    });
+  } catch (error) {
+    console.error('Error deleting model:', error);
+    res.status(500).json({ error: error.message || "Internal server error" });
+  }
+});
 
 module.exports = router;

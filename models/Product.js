@@ -34,8 +34,8 @@ const productSchema = new mongoose.Schema({
   },
   sexe: {
     type: String,
-    enum: ['feminin', 'masculin', 'unisexe'], // Contrôle des valeurs possibles
-    default: "unisexe"
+     // Contrôle des valeurs possibles
+    
   },
   
   // Ajout d'un boolean pour indiquer si model3D est un ID ou une URL
