@@ -29,24 +29,66 @@ app.use('/api', userRoutes);
 // Dans votre fichier app.js ou index.js
 // Dans votre serveur Node.js
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
-  res.header('Cross-Origin-Embedder-Policy', 'require-corp');
+  const origin = req.headers.origin;
+  
+  // Allow both specific origins and any localhost origin
+  if (origin && (
+    origin === 'http://192.168.1.19:3000' || 
+    origin.startsWith('http://127.0.0.1:') ||
+    origin.startsWith('http://localhost:')
+  )) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // Fallback to allow all origins if needed
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  // Allow all common headers
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Allow these HTTP methods
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  // Important for WebGL/3D content
+  res.header('Cross-Origin-Embedder-Policy', 'credentialless');
   res.header('Cross-Origin-Opener-Policy', 'same-origin');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
   next();
 });
 // Servir les fichiers statiques du dossier models
-app.use('/models', express.static(path.join(__dirname, 'models'), {
-  setHeaders: (res, path) => {
-    if (path.endsWith('.gltf')) {
+app.use('/models', express.static(path.join(__dirname, '3DModels'), {
+  setHeaders: (res, filePath, stat) => {
+    // Set appropriate content types
+    if (filePath.endsWith('.gltf')) {
       res.set('Content-Type', 'model/gltf+json');
-    } else if (path.endsWith('.glb')) {
+    } else if (filePath.endsWith('.glb')) {
       res.set('Content-Type', 'model/gltf-binary');
     }
+    
+    // Get the origin from the request
+    const origin = res.req.headers.origin;
+    
+    // Match the same CORS logic as above
+    if (origin && (
+      origin === '*' || 
+      origin.startsWith('http://127.0.0.1:') ||
+      origin.startsWith('http://localhost:')
+    )) {
+      res.set('Access-Control-Allow-Origin', origin);
+    } else {
+      res.set('Access-Control-Allow-Origin', '*');
+    }
+    
+    // Add caching headers for better performance
+    res.set('Cache-Control', 'public, max-age=86400');
   }
 }));
-app.use('/models', express.static(path.join(__dirname, '3DModels')));
+
 app.use('/api', opticianRoutes);
 
 app.use('/upload-model', uploadModelsRouter);
@@ -149,12 +191,6 @@ app.use(session({
   }
 }));
 // Middleware setup
-app.use(cors({
-  resave: false, 
-  
-
-  saveUninitialized: true 
-}));
 
 const PORT = 3000;
 // Start the server

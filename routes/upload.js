@@ -2,75 +2,83 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const path = require("path");
-const User = require('../models/User');
-
-// Create the "images" directory if it doesn't exist
 const fs = require("fs");
+const User = require("../models/User");
+
+// Ensure the images directory exists
 const imagesDir = path.join(__dirname, "../images");
 if (!fs.existsSync(imagesDir)) {
   fs.mkdirSync(imagesDir, { recursive: true });
 }
 
+// Multer storage config: save into /images with timestamped filenames
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
+  destination(req, file, cb) {
     cb(null, imagesDir);
   },
-  filename: function (req, file, cb) {
-    cb(
-      null,
-      new Date().toISOString().replace(/:/g, "-") + "-" + file.originalname
-    );
+  filename(req, file, cb) {
+    const timestamp = new Date().toISOString().replace(/:/g, "-");
+    cb(null, `${timestamp}-${file.originalname}`);
   },
 });
+const upload = multer({ storage });
 
-const upload = multer({ storage: storage });
-
-router.post("/", upload.single("image"), async (req, res) => {
+// POST /api/upload/:email/image
+router.post("/:email/image", upload.single("image"), async (req, res) => {
   try {
-    console.log('Upload request received:', req.body);
+    console.log("Upload request received:", req.params.email);
 
+    // Check that a file was sent
     if (!req.file) {
-      console.log('No image uploaded');
+      console.log("No image uploaded");
       return res.status(400).json({ message: "No image uploaded" });
     }
 
-    // Generate the image URL
+    // Build the public URL to the saved file
     const imageUrl = `${req.protocol}://${req.get("host")}/images/${req.file.filename}`;
-    console.log('Image uploaded successfully. URL:', imageUrl);
+    console.log("Image uploaded successfully. URL:", imageUrl);
 
-    // If email is provided, update the user's image URL
-    if (req.body.email) {
-      try {
-        const email = req.body.email;
-        console.log(`Updating image URL for user: ${email}`);
-
-        // Find the user by email
-        const user = await User.findOne({ email: email });
-
-        if (user) {
-          // Update existing user
-          user.imageUrl = imageUrl;
-          await user.save();
-          console.log(`User ${email} image URL updated`);
-        } else {
-          // Just log that user was not found, don't try to create one
-          console.log(`User with email ${email} not found - stored image URL: ${imageUrl}`);
-          // No attempt to create user with missing fields
-        }
-      } catch (err) {
-        console.error('Error updating user with image URL:', err);
-        // Don't fail the whole request if this part fails
-      }
+    // Update the user's imageUrl using the email from the URL
+    const email = req.params.email;
+    const user = await User.findOne({ email });
+    if (user) {
+      user.imageUrl = imageUrl;
+      await user.save();
+      console.log(`User ${email} image URL updated`);
+    } else {
+      console.log(`User with email ${email} not found`);
     }
 
-    res.status(200).json({
+    // Respond with success and the new URL
+    return res.status(200).json({
       message: "Image uploaded successfully",
-      imageUrl: imageUrl,
+      imageUrl,
     });
   } catch (error) {
-    console.error('Error uploading image:', error);
-    res.status(500).json({ error: error.message });
+    console.error("Error uploading image:", error);
+    return res.status(500).json({ error: error.message });
   }
 });
+// In routes/upload.js, below your POST:
+router.put("/:email/image", async (req, res) => {
+  try {
+    const email = req.params.email;
+    const { imageUrl } = req.body;
+    if (!imageUrl) {
+      return res.status(400).json({ message: "Missing imageUrl in body" });
+    }
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    user.imageUrl = imageUrl;
+    await user.save();
+    return res.status(200).json({ message: "User image updated" });
+  } catch (err) {
+    console.error("Error in PUT /upload/:email/image", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 
 module.exports = router;

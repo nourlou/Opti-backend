@@ -41,7 +41,8 @@ const opticienSchema = new mongoose.Schema({
   totalReviews: { 
     type: Number, 
     default: 0 
-  }
+  },
+  imageUrl: { type: String },
   
 
 });

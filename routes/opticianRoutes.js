@@ -338,11 +338,12 @@ router.post('/loginOpticien', async (req, res) => {
 
     console.log(`Optician found: ${optician.email}`);
 
-    // Vérifier le mot de passe avec bcrypt
+    // Vérification du mot de passe avec bcrypt
     const isMatch = await bcrypt.compare(password, optician.password);
+
     if (!isMatch) {
-      console.log(`Password mismatch for optician ${optician.email}`);
-      return res.status(401).json({ message: 'Invalid credentials' });
+      console.log(`Mot de passe incorrect pour l'opticien ${optician.email}`);
+      return res.status(401).json({ message: 'Incorrect password' }); // Message clair pour le client
     }
 
     const token = jwt.sign(
