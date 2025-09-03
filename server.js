@@ -1,308 +1,199 @@
 const express = require('express');
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const dotenv = require('dotenv');
+const { OAuth2Client } = require('google-auth-library');
+const axios = require('axios');
+const session = require('express-session');
+const fs = require('fs');
+const multer = require('multer');
+const userRoutes = require('./routes/user');
+const app = express();
 const cors = require('cors');
 const nodemailer = require('nodemailer');
+const uploadModelsRouter = require('./routes/uploadModels');
 
-const app = express();
+const opticianRoutes = require('./routes/opticianRoutes');
+
+const orderRoutes = require('./routes/orderRoutes');
 app.use(cors());
 app.use(express.json());
+//upload image
+const path=require("path");
+app.use("/images", express.static(path.join(__dirname, "images")));
 
-// User model
-const User = mongoose.model('User', new mongoose.Schema({
-  nom: { type: String, required: true },
-  prenom: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
-  date: { type: String, required: true }, // Date format: yyyy-MM-dd
-  password: { type: String, required: true },
+app.use('/api/cart',require("./routes/cart_item"));
+
+app.use('/api', userRoutes);
+// Dans votre fichier app.js ou index.js
+// Dans votre serveur Node.js
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Allow both specific origins and any localhost origin
+  if (origin && (
+    origin === 'http://192.168.1.19:3000' || 
+    origin.startsWith('http://127.0.0.1:') ||
+    origin.startsWith('http://localhost:')
+  )) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    // Fallback to allow all origins if needed
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  
+  // Allow all common headers
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Allow these HTTP methods
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  // Important for WebGL/3D content
+  res.header('Cross-Origin-Embedder-Policy', 'credentialless');
+  res.header('Cross-Origin-Opener-Policy', 'same-origin');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  next();
+});
+// Servir les fichiers statiques du dossier models
+app.use('/models', express.static(path.join(__dirname, '3DModels'), {
+  setHeaders: (res, filePath, stat) => {
+    // Set appropriate content types
+    if (filePath.endsWith('.gltf')) {
+      res.set('Content-Type', 'model/gltf+json');
+    } else if (filePath.endsWith('.glb')) {
+      res.set('Content-Type', 'model/gltf-binary');
+    }
+    
+    // Get the origin from the request
+    const origin = res.req.headers.origin;
+    
+    // Match the same CORS logic as above
+    if (origin && (
+      origin === '*' || 
+      origin.startsWith('http://127.0.0.1:') ||
+      origin.startsWith('http://localhost:')
+    )) {
+      res.set('Access-Control-Allow-Origin', origin);
+    } else {
+      res.set('Access-Control-Allow-Origin', '*');
+    }
+    
+    // Add caching headers for better performance
+    res.set('Cache-Control', 'public, max-age=86400');
+  }
 }));
 
-// MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/Opti_app', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('Error connecting to MongoDB:', err));
+app.use('/api', opticianRoutes);
 
-// Temporary storage for reset codes
-const resetCodes = new Map(); // { email: { code, expiresAt } }
+app.use('/upload-model', uploadModelsRouter);
 
-// Email setup
-const transporter = nodemailer.createTransport({
-  service: 'gmail', // Or your SMTP service
-  auth: {
-    user: 'yosrbencheikh28@gmail.com',
-    pass: 'xqzc yhwk kdvi pmdy',
-  },
-});
-transporter.verify((error, success) => {
-  if (error) {
-    console.log('Error in transporter configuration:', error);
-  } else {
-    console.log('Transporter is ready to send emails');
-  }
-});
+app.use('/orders', orderRoutes);
+// Configuration du dossier des images
+const imagesDir = path.join(__dirname, "ProductImages");
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir, { recursive: true });
+  fs.chmodSync(imagesDir, 0o777);
+}
+const upload = multer({ dest: 'ProductImages/' }); // Ajoutez cette ligne
+const uploadProducts = require("./routes/uploadProducts");
+const productRoutes = require('./routes/products');
+const forgotPasswordRoutes = require('./routes/forgot-password');
+app.use("/ProductImages", express.static(imagesDir));
+app.use("/api/products/upload", uploadProducts);
+app.use("/ProductImages", express.static(imagesDir));
+app.use("/upload", uploadProducts);
 
-// Forgot Password Route - Send Code
-app.post('/api/forgot-password', async (req, res) => {
-  const { email } = req.body;
-  const user = await User.findOne({ email });
+app.use("/api/products", productRoutes);
 
-  if (!user) {
-    return res.status(404).send({ message: 'User not found' });
-  }
 
-  // Generate a 6-digit reset code
-  const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 10 * 60 * 1000; // Expires in 10 minutes
 
-  // Store reset code temporarily
-  resetCodes.set(email, { code: resetCode, expiresAt });
+// Use the forgot password routes
+app.use('/api', forgotPasswordRoutes);
 
-  // Debug log to confirm reset code storage
-  console.log(`Storing reset code for ${email}: ${resetCode}, expires at: ${new Date(expiresAt)}`);
+// Logging middleware
 
-  // Send email with the reset code
-  const mailOptions = {
-    from: 'yosrbencheikh28@gmail.com',
-    to: email,
-    subject: 'Password Reset Code',
-    html: `
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
-          }
-          .email-container {
-            width: 100%;
-            background-color: #ffffff;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            border: 1px solid #ddd;
-          }
-          .email-header {
-            background-color: #007BFF;
-            color: #ffffff;
-            padding: 20px;
-            text-align: center;
-            border-radius: 5px;
-          }
-          .email-header h1 {
-            margin: 0;
-          }
-          .email-body {
-            padding: 20px;
-            font-size: 16px;
-            color: #333;
-          }
-          .email-footer {
-            background-color: #f4f4f4;
-            text-align: center;
-            padding: 10px;
-            font-size: 12px;
-            color: #777;
-          }
-          .code {
-            display: inline-block;
-            padding: 12px 20px;
-            background-color:rgb(51, 183, 183);
-            color: white;
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            border-radius: 5px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="email-container">
-          <div class="email-header">
-            <h1>Password Reset Request</h1>
-          </div>
-          <div class="email-body">
-            <p>Dear ${email},</p>
-            <p>We received a request to reset your password. To proceed, please use the verification code below:</p>
-            <div class="code">
-              ${resetCode}
-            </div>
-            <p>Please enter this code on the password reset page to continue.</p>
-            <p>If you didn't request a password reset, please ignore this email or let us know.</p>
-          </div>
-          <div class="email-footer">
-            <p>Best regards,</p>
-            <p>Your Company Name</p>
-            <p>www.yourwebsite.com</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `
-  };
-  
-  
 
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error('Error sending email:', error);
-      return res.status(500).send({
-        message: 'Error sending email',
-        error: error.response ? error.response : error.message,
-      });
-    }
-    console.log('Email sent: ' + info.response);
-    res.status(200).send({ message: 'Reset code sent to email' });
+
+// Upload route
+app.use("/api/upload", require("./routes/upload"));
+app.use("/opticiens", require("./routes/boutiques"));
+
+app.use("/", require("./routes/login"));
+app.use("/", require("./routes/resetPassword"));
+app.use("/", require("./routes/updateUser"));
+
+app.use('/api/wishlist', require('./routes/wishlist'));
+
+//
+//google route
+app.use('/auth', require('./routes/googleAuth'));
+app.use('/auth', require('./routes/facebookAuth'));
+app.use('/api', require('./routes/reviewRoutes'));
+app.use('/api', require('./routes/storeReview'));
+
+//recommendation
+app.use('/api', require('./routes/recommendation'));
+
+
+//
+dotenv.config(); // Load environment variables
+const storeWishlistRoutes = require('./routes/storeWishlist');
+
+// Add this line with your other app.use statements
+app.use('/api', storeWishlistRoutes);
+// Import the User model
+const User = require('./models/User');
+
+dotenv.config(); // Load environment variables
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'your_very_secure_secret_key';
+
+
+const mongoURI = 'mongodb+srv://OptiApp:OptiApp2357@cluster0.j5jbz.mongodb.net/Opti_app?retryWrites=true&w=majority';
+// MongoDB connection
+// MongoDB connection
+mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => {
+    console.log('✅ Connected to MongoDB Atlas');
+    // Add more database logging if needed
+  })
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err);
   });
+mongoose.connection.on('connected', () => {
+  console.log('Mongoose connected to:', mongoose.connection.host);
+  console.log('Database:', mongoose.connection.name);
+  console.log('Collection:', User.collection.name);
 });
 
-// Verify Code Route
-app.post('/api/verify-code', (req, res) => {
-  const { email, code } = req.body;
-
-  // Debug log to track the code verification process
-  console.log(`Verifying code for email: ${email}`);
-
-  const storedData = resetCodes.get(email);
-
-  // Check if the stored data exists and the code matches
-  if (!storedData) {
-    console.log(`No stored reset data for email: ${email}`);
-    return res.status(400).send({ message: 'Invalid or expired code' });
-  }
-
-  if (storedData.code !== code) {
-    console.log(`Incorrect code for ${email}. Expected: ${storedData.code}, received: ${code}`);
-    return res.status(400).send({ message: 'Invalid or expired code' });
-  }
-
-  // Check if the code has expired
-  if (Date.now() > storedData.expiresAt) {
-    resetCodes.delete(email); // Remove expired code
-    console.log(`Code for ${email} has expired.`);
-    return res.status(400).send({ message: 'Code has expired' });
-  }
-
-  // Debug log if the code is valid
-  console.log(`Code verified for email: ${email}`);
-  res.status(200).send({ message: 'Code verified' });
+mongoose.connection.on('error', (err) => {
+  console.error('Mongoose connection error:', err);
 });
 
-// Reset Password Route
-app.post('/api/reset-password', async (req, res) => {
-  const { email, code, newPassword } = req.body;
-  const storedData = resetCodes.get(email);
+// CORS Configuration
+app.use(cors({
+  origin: 'http://192.168.1.19:3000',  // Allow requests from this origin (adjust if needed)
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],}
+));
 
-  // Debug log to track the reset password process
-  console.log(`Resetting password for email: ${email}`);
-
-  if (!storedData || storedData.code !== code) {
-    console.log(`Invalid or expired code for ${email}`);
-    return res.status(400).send({ message: 'Invalid or expired code' });
+app.use(session({
+  secret: 'cfghjklmghjk', // Replace with a secure secret key
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
   }
+}));
+// Middleware setup
 
-  // Check if the code has expired
-  if (Date.now() > storedData.expiresAt) {
-    resetCodes.delete(email); // Remove expired code
-    console.log(`Code for ${email} has expired during password reset.`);
-    return res.status(400).send({ message: 'Code has expired' });
-  }
-
-  // Hash new password and update user
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  await User.findOneAndUpdate({ email }, { password: hashedPassword });
-
-  // Remove reset code after successful reset
-  resetCodes.delete(email);
-
-  // Debug log when the password is successfully reset
-  console.log(`Password for ${email} has been reset successfully.`);
-  res.status(200).send({ message: 'Password has been reset successfully' });
-});
-
-// Other existing routes (unchanged)
-app.get('/api/users/:email', async (req, res) => {
-  try {
-    const user = await User.findOne({ email: req.params.email });
-    if (user) {
-      return res.status(200).send(user);
-    } else {
-      return res.status(404).send({ message: 'User not found' });
-    }
-  } catch (err) {
-    return res.status(500).send({ message: 'Error retrieving user' });
-  }
-});
-
-app.post('/api/users', async (req, res) => {
-  const { nom, prenom, email, date, password } = req.body;
-
-  try {
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).send({ message: 'User with this email already exists' });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUser = new User({
-      nom,
-      prenom,
-      email,
-      date,
-      password: hashedPassword,
-    });
-
-    await newUser.save();
-    return res.status(201).send(newUser);
-  } catch (err) {
-    return res.status(500).send({ message: 'Error creating user', error: err.message });
-  }
-});
-
-app.get('/api/users', async (req, res) => {
-  const users = await User.find();
-  res.status(200).json(users);
-});
-
-app.put('/api/users/:id', async (req, res) => {
-  try {
-    const { nom, email, password } = req.body;
-    const { id } = req.params;
-
-    const user = await User.findById(id);
-    if (!user) {
-      return res.status(404).send({ message: 'User not found' });
-    }
-
-    let updatedPassword = password;
-    if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updatedPassword = await bcrypt.hash(password, salt);
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
-      { nom, email, password: updatedPassword },
-      { new: true }
-    );
-
-    res.status(200).send(updatedUser);
-  } catch (error) {
-    console.error(error);
-    res.status(500).send({ message: 'Error updating user' });
-  }
-});
-
-// Start Server
-const port = 3000;
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+const PORT = 3000;
+// Start the server
+app.listen(3000, '0.0.0.0', () => {
+  console.log('Server running on http://localhost:3000');
 });
